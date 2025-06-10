@@ -2,96 +2,71 @@
   mini-lsm-book © 2022-2025 by Alex Chi Z is licensed under CC BY-NC-SA 4.0
 -->
 
-# Storage Engine and Block Cache
+# 存储引擎和块缓存 (Storage Engine and Block Cache)
 
 <div class="warning">
 
-This is a legacy version of the Mini-LSM course and we will not maintain it anymore. We now have a better version of this course and this chapter is now part of [Mini-LSM Week 1 Day 5: Read Path](./week1-05-read-path.md) and [Mini-LSM Week 1 Day 6: Write Path](./week1-06-write-path.md)
+这是 Mini-LSM 课程的旧版本，我们将不再维护它。我们现在有了这个课程的更好版本，本章内容现在是 [Mini-LSM 第 1 周第 5 天：读取路径](./week1-05-read-path.md) 和 [Mini-LSM 第 1 周第 6 天：写入路径](./week1-06-write-path.md) 的一部分。
 
 </div>
 
 <!-- toc -->
 
-In this part, you will need to modify:
+在这一部分，您需要修改：
 
 * `src/lsm_iterator.rs`
 * `src/lsm_storage.rs`
 * `src/table.rs`
-* Other parts that use `SsTable::read_block`
+* 其他使用 `SsTable::read_block` 的部分
 
-You can use `cargo x copy-test day4` to copy our provided test cases to the starter code directory. After you have
-finished this part, use `cargo x scheck` to check the style and run all test cases. If you want to write your own
-test cases, write a new module `#[cfg(test)] mod user_tests { /* your test cases */ }` in `table.rs`. Remember to remove
-`#![allow(...)]` at the top of the modules you modified so that cargo clippy can actually check the styles.
+您可以使用 `cargo x copy-test day4` 将我们提供的测试用例复制到入门代码目录。完成此部分后，使用 `cargo x scheck` 检查样式并运行所有测试用例。如果您想编写自己的测试用例，请在 `table.rs` 中编写一个新的模块 `#[cfg(test)] mod user_tests { /* 您的测试用例 */ }`。请记住移除您修改的模块顶部的 `#![allow(...)]`，以便 cargo clippy 能够实际检查样式。
 
-## Task 1 - Put and Delete
+## 任务 1 - Put 和 Delete (Put and Delete)
 
-Before implementing put and delete, let's revisit how LSM tree works. The structure of LSM includes:
+在实现 put 和 delete 之前，让我们回顾一下 LSM 树的工作原理。LSM 的结构包括：
 
-* Mem-table: one active mutable mem-table and multiple immutable mem-tables.
-* Write-ahead log: each mem-table corresponds to a WAL.
-* SSTs: mem-table can be flushed to the disk in SST format. SSTs are organized in multiple levels.
+* MemTable (内存表)：一个活动的可变 memtable 和多个不可变 memtable。
+* 预写日志 (Write-ahead log, WAL)：每个 memtable 对应一个 WAL。
+* SST (有序字符串表)：memtable 可以以 SST 格式刷写到磁盘。SST 以多个层级组织。
 
-In this part, we only need to take the lock, write the entry (or tombstone) into the active mem-table. You can modify
-`lsm_storage.rs`.
+在这一部分，我们只需要获取锁，并将条目（或墓碑, tombstone）写入活动的 memtable 中。您可以修改 `lsm_storage.rs`。
 
-## Task 2 - Get
+## 任务 2 - Get (获取)
 
-To get a value from the LSM, we can simply probe from active memtable, immutable memtables (from latest to earliest),
-and all the SSTs. To reduce the critical section, we can hold the read lock to copy all the pointers to mem-tables and
-SSTs out of the `LsmStorageInner` structure, and create iterators out of the critical section. Be careful about the
-order when creating iterators and probing.
+要从 LSM 获取一个值，我们可以简单地从活动的 memtable、不可变的 memtable（从最新到最早）以及所有的 SST 中探测。为了减少临界区 (critical section)，我们可以持有读锁，将所有指向 memtable 和 SST 的指针复制出 `LsmStorageInner` 结构，并在临界区之外创建迭代器。在创建迭代器和探测时要小心顺序。
 
-## Task 3 - Scan
+## 任务 3 - Scan (扫描)
 
-To create a scan iterator `LsmIterator`, you will need to use `TwoMergeIterator` to merge `MergeIterator` on mem-table
-and `MergeIterator` on SST. You can implement this in `lsm_iterator.rs`. Optionally, you can implement `FusedIterator`
-so that if a user accidentally calls `next` after the iterator becomes invalid, the underlying iterator won't panic.
+要创建一个扫描迭代器 `LsmIterator`，您需要使用 `TwoMergeIterator` 来合并 memtable 上的 `MergeIterator` 和 SST 上的 `MergeIterator`。您可以在 `lsm_iterator.rs` 中实现这一点。可选地，您可以实现 `FusedIterator`，这样如果用户在迭代器失效后意外调用 `next`，底层迭代器就不会 panic。
 
-The sequence of key-value pairs produced by `TwoMergeIterator` may contain empty value, which means that the value is
-deleted. `LsmIterator` should filter these empty values. Also it needs to correctly handle the start and end bounds.
+`TwoMergeIterator` 生成的键值对序列可能包含空值，这意味着该值已被删除。`LsmIterator` 应过滤掉这些空值。此外，它还需要正确处理起始和结束边界。
 
-## Task 4 - Sync
+## 任务 4 - Sync (同步)
 
-In this part, we will implement mem-tables and flush to L0 SSTs in `lsm_storage.rs`. As in task 1, write operations go
-directly into the active mutable mem-table. Once `sync` is called, we flush SSTs to the disk in two steps:
+在这一部分，我们将在 `lsm_storage.rs` 中实现 memtable 并将其刷写到 L0 SST。与任务 1 一样，写入操作直接进入活动的可变 memtable。一旦调用 `sync`，我们将分两步将 SST 刷写到磁盘：
 
-* Firstly, move the current mutable mem-table to immutable mem-table list, so that no future requests will go into the
-  current mem-table. Create a new mem-table. All of these should happen in one single critical section and stall all
-  reads.
-* Then, we can flush the mem-table to disk as an SST file without holding any lock.
-* Finally, in one critical section, remove the mem-table and put the SST into `l0_tables`.
+* 首先，将当前可变的 memtable 移动到不可变 memtable 列表，这样未来的请求就不会进入当前的 memtable。创建一个新的 memtable。所有这些都应该在一个单独的临界区内发生，并阻塞所有读取。
+* 然后，我们可以在不持有任何锁的情况下将 memtable 作为 SST 文件刷写到磁盘。
+* 最后，在一个临界区内，移除该 memtable 并将 SST 放入 `l0_tables`。
 
-Only one thread can sync at a time, and therefore you should use a mutex to ensure this requirement.
+一次只能有一个线程进行同步，因此您应该使用互斥锁 (mutex) 来确保此要求。
 
-## Task 5 - Block Cache
+## 任务 5 - 块缓存 (Block Cache)
 
-Now that we have implemented the LSM structure, we can start writing something to the disk! Previously in `table.rs`,
-we implemented a `FileObject` struct, without writing anything to disk. In this task, we will change the implementation
-so that:
+既然我们已经实现了 LSM 结构，我们就可以开始向磁盘写入一些东西了！之前在 `table.rs` 中，我们实现了一个 `FileObject` 结构，但没有向磁盘写入任何内容。在这个任务中，我们将更改实现，以便：
 
-* `read` will read from the disk without any caching using `read_exact_at` in `std::os::unix::fs::FileExt`.
-* The size of the file should be stored inside the struct, and `size` function directly returns it.
-* `create` should write the file to the disk. Generally you should call `fsync` on that file. But this would slow down
-  unit tests a lot. Therefore, we don't do fsync until day 6 recovery.
-* `open` remains unimplemented until day 6 recovery.
+* `read` 将使用 `std::os::unix::fs::FileExt` 中的 `read_exact_at` 从磁盘读取，不进行任何缓存。
+* 文件的大小应存储在结构内部，`size` 函数直接返回它。
+* `create` 应将文件写入磁盘。通常您应该对该文件调用 `fsync`。但这会大大减慢单元测试的速度。因此，在第 6 天的恢复实现之前，我们不执行 fsync。
+* `open` 在第 6 天的恢复实现之前保持未实现状态。
 
-After that, we can implement a new `read_block_cached` function on `SsTable` so that we can leverage block cache to
-serve read requests. Upon initializing the `LsmStorage` struct, you should create a block cache of 4GB size using
-`moka-rs`. Blocks are cached by SST id + block id. Use `try_get_with` to get the block from cache / populate the cache
-if cache miss. If there are multiple requests reading the same block and cache misses, `try_get_with` will only issue a
-single read request to the disk and broadcast the result to all requests.
+之后，我们可以在 `SsTable` 上实现一个新的 `read_block_cached` 函数，以便我们可以利用块缓存来处理读取请求。在初始化 `LsmStorage` 结构时，您应该使用 `moka-rs` 创建一个大小为 4GB 的块缓存。块按 SST ID + 块 ID进行缓存。使用 `try_get_with` 从缓存中获取块/在缓存未命中时填充缓存。如果有多个请求读取同一个块并且缓存未命中，`try_get_with` 将只向磁盘发出单个读取请求，并将结果广播给所有请求。
 
-Remember to change `SsTableIterator` to use the block cache.
+请记住更改 `SsTableIterator` 以使用块缓存。
 
-## Extra Tasks
+## 额外任务 (Extra Tasks)
 
-* As you might have seen, each time we do a get, put or deletion, we will need to take a read lock protecting the LSM
-  structure; and if we want to flush, we will need to take a write lock. This can cause a lot of problems. Some
-  lock implementations are fair, which means as long as there is a writer waiting on the lock, no reader can take
-  the lock. Therefore, the writer will wait until the slowest reader finishes its operation before it can actually
-  do some work. One possible optimization is to implement `WriteBatch`. We don't need to immediately write users'
-  requests into mem-table + WAL. We can allow users to do a batch of writes.
-* Align blocks to 4K and use direct I/O.
+* 正如您可能已经看到的，每次我们执行 get、put 或 delete 操作时，都需要获取保护 LSM 结构的读锁；如果我们想刷写，则需要获取写锁。这可能会导致很多问题。一些锁实现是公平的，这意味着只要有写者在等待锁，任何读者都无法获取锁。因此，写者将等待最慢的读者完成其操作，然后才能实际执行工作。一种可能的优化是实现 `WriteBatch`。我们不需要立即将用户的请求写入 memtable + WAL。我们可以允许用户进行批量写入。
+* 将块对齐到 4K 并使用直接 I/O (direct I/O)。
 
 {{#include copyright.md}}

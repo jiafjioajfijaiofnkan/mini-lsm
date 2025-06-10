@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 use std::fmt::Debug;
 
@@ -47,22 +45,22 @@ impl Key<Vec<u8>> {
         Self(Vec::new())
     }
 
-    /// Create a `KeyVec` from a `Vec<u8>`. Will be removed in week 3.
+    /// 从 `Vec<u8>` 创建一个 `KeyVec`。将在第 3 周移除。
     pub fn from_vec(key: Vec<u8>) -> Self {
         Self(key)
     }
 
-    /// Clears the key and set ts to 0.
+    /// 清除键并将 ts 设置为 0。
     pub fn clear(&mut self) {
         self.0.clear()
     }
 
-    /// Append a slice to the end of the key
+    /// 将一个切片追加到键的末尾
     pub fn append(&mut self, data: &[u8]) {
         self.0.extend(data)
     }
 
-    /// Set the key from a slice without re-allocating. The signature will change in week 3.
+    /// 从切片设置键，无需重新分配。签名将在第 3 周更改。
     pub fn set_from_slice(&mut self, key_slice: KeySlice) {
         self.0.clear();
         self.0.extend(key_slice.0);
@@ -76,7 +74,7 @@ impl Key<Vec<u8>> {
         Key(self.0.into())
     }
 
-    /// Always use `raw_ref` to access the key in week 1 + 2. This function will be removed in week 3.
+    /// 在第 1 周 + 第 2 周始终使用 `raw_ref` 访问键。此函数将在第 3 周移除。
     pub fn raw_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
@@ -95,12 +93,12 @@ impl Key<Bytes> {
         Key(&self.0)
     }
 
-    /// Create a `KeyBytes` from a `Bytes`. Will be removed in week 3.
+    /// 从 `Bytes` 创建一个 `KeyBytes`。将在第 3 周移除。
     pub fn from_bytes(bytes: Bytes) -> KeyBytes {
         Key(bytes)
     }
 
-    /// Always use `raw_ref` to access the key in week 1 + 2. This function will be removed in week 3.
+    /// 在第 1 周 + 第 2 周始终使用 `raw_ref` 访问键。此函数将在第 3 周移除。
     pub fn raw_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
@@ -119,12 +117,12 @@ impl<'a> Key<&'a [u8]> {
         Key(self.0.to_vec())
     }
 
-    /// Create a key slice from a slice. Will be removed in week 3.
+    /// 从切片创建一个键切片。将在第 3 周移除。
     pub fn from_slice(slice: &'a [u8]) -> Self {
         Self(slice)
     }
 
-    /// Always use `raw_ref` to access the key in week 1 + 2. This function will be removed in week 3.
+    /// 在第 1 周 + 第 2 周始终使用 `raw_ref` 访问键。此函数将在第 3 周移除。
     pub fn raw_ref(self) -> &'a [u8] {
         self.0
     }

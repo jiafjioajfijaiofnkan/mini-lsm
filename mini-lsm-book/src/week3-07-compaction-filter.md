@@ -2,15 +2,15 @@
   mini-lsm-book © 2022-2025 by Alex Chi Z is licensed under CC BY-NC-SA 4.0
 -->
 
-# Snack Time: Compaction Filters
+# 点心时间：压缩过滤器 (Snack Time: Compaction Filters)
 
-Congratulations! You made it there! In the previous chapter, you made your LSM engine multi-version capable, and the users can use transaction APIs to interact with your storage engine. At the end of this week, we will implement some easy but important features of the storage engine. Welcome to Mini-LSM's week 3 snack time!
+恭喜！您成功到达了这里！在上一章中，您使您的 LSM 引擎具备了多版本能力，用户可以使用事务 API 与您的存储引擎进行交互。在本周结束时，我们将实现一些简单但重要的存储引擎功能。欢迎来到 Mini-LSM 第 3 周的点心时间！
 
-In this chapter, we will generalize our compaction garbage collection logic to become compaction filters.
+在本章中，我们将把压缩垃圾回收逻辑推广为压缩过滤器。
 
-For now, our compaction will simply retain the keys above the watermark and the latest version of the keys below the watermark. We can add some magic to the compaction process to help the user collect some unused data automatically as a background job.
+目前，我们的压缩只会简单地保留水印之上的键以及水印之下键的最新版本。我们可以在压缩过程中添加一些“魔法”，以帮助用户在后台自动收集一些未使用的数据。
 
-Consider a case that the user uses Mini-LSM to store database tables. Each row in the table are prefixed with the table name. For example,
+考虑这样一种情况：用户使用 Mini-LSM 存储数据库表。表中的每一行都以表名作为前缀。例如：
 
 ```
 table1_key1 -> row
@@ -20,31 +20,31 @@ table2_key1 -> row
 table2_key2 -> row
 ```
 
-Now the user executes `DROP TABLE table1`. The engine will need to clean up all the data beginning with `table1`.
+现在用户执行 `DROP TABLE table1`。引擎需要清理所有以 `table1` 开头的数据。
 
-There are a lot of ways to achieve the goal. The user of Mini-LSM can scan all the keys beginning with `table1` and requests the engine to delete it. However, scanning a very large database might be slow, and it will generate the same number of delete tombstones as the existing keys. Therefore, scan-and-delete will not free up the space occupied by the dropped table -- instead, it will add more data to the engine and the space can only be reclaimed when the tombstones reach the bottom level of the engine.
+有很多方法可以实现这个目标。Mini-LSM 的用户可以扫描所有以 `table1` 开头的键，并请求引擎删除它们。然而，扫描一个非常大的数据库可能会很慢，并且会生成与现有键相同数量的删除墓碑 (delete tombstone)。因此，扫描并删除不会释放被删除表占用的空间 —— 相反，它会向引擎添加更多数据，并且只有当墓碑到达引擎的最底层时才能回收空间。
 
-Or, they can create column families (we will talk about this in *rest of your life* chapter). They store each table in a column family, which is a standalone LSM state, and directly remove the SST files corresponding to the column family when the user drop the table.
+或者，他们可以创建列族 (column family)（我们将在“你的余生”章节中讨论）。他们将每个表存储在一个列族中，这是一个独立的 LSM 状态，当用户删除表时，可以直接删除与该列族对应的 SST 文件。
 
-In this course, we will implement the third approach: compaction filters. Compaction filters can be dynamically added to the engine at runtime. During the compaction, if a key matching the compaction filter is found, we can silently remove it in the background. Therefore, the user can attach a compaction filter of `prefix=table1` to the engine, and all these keys will be removed during compaction.
+在本课程中，我们将实现第三种方法：压缩过滤器 (compaction filter)。压缩过滤器可以在运行时动态添加到引擎中。在压缩过程中，如果发现与压缩过滤器匹配的键，我们可以在后台静默地将其删除。因此，用户可以向引擎附加一个 `prefix=table1` 的压缩过滤器，所有这些键都将在压缩过程中被删除。
 
-## Task 1: Compaction Filter
+## 任务 1：压缩过滤器 (Compaction Filter)
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/compact.rs
 ```
 
-You can iterate all compaction filters in `LsmStorageInner::compaction_filters`. If the first version of the key below watermark matches the compaction filter, simply remove it instead of keeping it in the SST file.
+您可以迭代 `LsmStorageInner::compaction_filters` 中的所有压缩过滤器。如果低于水印的键的第一个版本与压缩过滤器匹配，则简单地将其删除，而不是保留在 SST 文件中。
 
-To run test cases,
+要运行测试用例：
 
 ```
 cargo x copy-test --week 3 --day 7
 cargo x scheck
 ```
 
-You can assume that the user will not get the keys within the prefix filter range. And, they will not scan the keys in the prefix range. Therefore, it is okay to return a wrong value when a user requests the keys in the prefix filter range (i.e., undefined behavior).
+您可以假设用户不会获取前缀过滤器范围内的键。并且，他们不会扫描前缀过滤器范围内的键。因此，当用户请求前缀过滤器范围内的键时，返回错误的值是可以接受的（即未定义行为）。
 
 {{#include copyright.md}}

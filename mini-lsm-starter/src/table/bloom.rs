@@ -1,27 +1,25 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
-// Copyright 2021 TiKV Project Authors. Licensed under Apache-2.0.
+// 版权所有 2021 TiKV Project Authors. 根据 Apache-2.0 获得许可。
 
 use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
 
-/// Implements a bloom filter
+/// 实现一个布隆过滤器
 pub struct Bloom {
-    /// data of filter in bits
+    /// 过滤器的位数据
     pub(crate) filter: Bytes,
-    /// number of hash functions
+    /// 哈希函数的数量
     pub(crate) k: u8,
 }
 
@@ -59,7 +57,7 @@ impl<T: AsMut<[u8]>> BitSliceMut for T {
 }
 
 impl Bloom {
-    /// Decode a bloom filter
+    /// 解码布隆过滤器
     pub fn decode(buf: &[u8]) -> Result<Self> {
         let filter = &buf[..buf.len() - 1];
         let k = buf[buf.len() - 1];
@@ -69,13 +67,13 @@ impl Bloom {
         })
     }
 
-    /// Encode a bloom filter
+    /// 编码布隆过滤器
     pub fn encode(&self, buf: &mut Vec<u8>) {
         buf.extend(&self.filter);
         buf.put_u8(self.k);
     }
 
-    /// Get bloom filter bits per key from entries count and FPR
+    /// 从条目数和误报率获取每个键的布隆过滤器位数
     pub fn bloom_bits_per_key(entries: usize, false_positive_rate: f64) -> usize {
         let size =
             -1.0 * (entries as f64) * false_positive_rate.ln() / std::f64::consts::LN_2.powi(2);
@@ -83,7 +81,7 @@ impl Bloom {
         locs as usize
     }
 
-    /// Build bloom filter from key hashes
+    /// 从键哈希构建布隆过滤器
     pub fn build_from_key_hashes(keys: &[u32], bits_per_key: usize) -> Self {
         let k = (bits_per_key as f64 * 0.69) as u32;
         let k = k.clamp(1, 30);
@@ -93,7 +91,7 @@ impl Bloom {
         let mut filter = BytesMut::with_capacity(nbytes);
         filter.resize(nbytes, 0);
 
-        // TODO: build the bloom filter
+        // TODO: 构建布隆过滤器
 
         Self {
             filter: filter.freeze(),
@@ -101,16 +99,16 @@ impl Bloom {
         }
     }
 
-    /// Check if a bloom filter may contain some data
+    /// 检查布隆过滤器是否可能包含某些数据
     pub fn may_contain(&self, h: u32) -> bool {
         if self.k > 30 {
-            // potential new encoding for short bloom filters
+            // 短布隆过滤器的潜在新编码
             true
         } else {
             let nbits = self.filter.bit_len();
             let delta = h.rotate_left(15);
 
-            // TODO: probe the bloom filter
+            // TODO: 探测布隆过滤器
 
             true
         }

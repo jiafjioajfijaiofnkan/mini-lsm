@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 use std::path::Path;
 use std::sync::Arc;
@@ -24,7 +22,7 @@ use crate::block::BlockBuilder;
 use crate::key::{KeySlice, KeyVec};
 use crate::lsm_storage::BlockCache;
 
-/// Builds an SSTable from key-value pairs.
+/// 从键值对构建 SSTable。
 pub struct SsTableBuilder {
     builder: BlockBuilder,
     first_key: KeyVec,
@@ -37,7 +35,7 @@ pub struct SsTableBuilder {
 }
 
 impl SsTableBuilder {
-    /// Create a builder based on target block size.
+    /// 根据目标块大小创建一个构建器。
     pub fn new(block_size: usize) -> Self {
         Self {
             data: Vec::new(),
@@ -51,7 +49,7 @@ impl SsTableBuilder {
         }
     }
 
-    /// Adds a key-value pair to SSTable
+    /// 将键值对添加到 SSTable
     pub fn add(&mut self, key: KeySlice, value: &[u8]) {
         if self.first_key.is_empty() {
             self.first_key.set_from_slice(key);
@@ -67,16 +65,16 @@ impl SsTableBuilder {
             return;
         }
 
-        // create a new block builder and append block data
+        // 创建一个新的块构建器并附加块数据
         self.finish_block();
 
-        // add the key-value pair to the next block
+        // 将键值对添加到下一个块
         assert!(self.builder.add(key, value));
         self.first_key.set_from_slice(key);
         self.last_key.set_from_slice(key);
     }
 
-    /// Get the estimated size of the SSTable.
+    /// 获取 SSTable 的估计大小。
     pub fn estimated_size(&self) -> usize {
         self.data.len()
     }
@@ -94,7 +92,7 @@ impl SsTableBuilder {
         self.data.put_u32(checksum);
     }
 
-    /// Builds the SSTable and writes it to the given path. Use the `FileObject` structure to manipulate the disk objects.
+    /// 构建 SSTable 并将其写入给定路径。使用 `FileObject` 结构来操作磁盘对象。
     pub fn build(
         mut self,
         id: usize,

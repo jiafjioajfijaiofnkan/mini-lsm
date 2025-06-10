@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
@@ -44,7 +42,7 @@ impl Manifest {
                     .create_new(true)
                     .write(true)
                     .open(path)
-                    .context("failed to create manifest")?,
+                    .context("无法创建 manifest 文件")?,
             )),
         })
     }
@@ -54,7 +52,7 @@ impl Manifest {
             .read(true)
             .append(true)
             .open(path)
-            .context("failed to recover manifest")?;
+            .context("无法恢复 manifest 文件")?;
         let mut buf = Vec::new();
         file.read_to_end(&mut buf)?;
         let mut buf_ptr = buf.as_slice();
@@ -66,7 +64,7 @@ impl Manifest {
             buf_ptr.advance(len as usize);
             let checksum = buf_ptr.get_u32();
             if checksum != crc32fast::hash(slice) {
-                bail!("checksum mismatched!");
+                bail!("校验和不匹配！");
             }
             records.push(json);
         }

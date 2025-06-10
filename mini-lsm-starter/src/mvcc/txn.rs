@@ -1,19 +1,17 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
-#![allow(unused_variables)] // TODO(you): remove this lint after implementing this mod
-#![allow(dead_code)] // TODO(you): remove this lint after implementing this mod
+#![allow(unused_variables)] // TODO(you): 实现此模块后移除此 lint
+#![allow(dead_code)] // TODO(you): 实现此模块后移除此 lint
 
 use std::{
     collections::HashSet,
@@ -38,29 +36,29 @@ pub struct Transaction {
     pub(crate) inner: Arc<LsmStorageInner>,
     pub(crate) local_storage: Arc<SkipMap<Bytes, Bytes>>,
     pub(crate) committed: Arc<AtomicBool>,
-    /// Write set and read set
+    /// 写集合和读集合
     pub(crate) key_hashes: Option<Mutex<(HashSet<u32>, HashSet<u32>)>>,
 }
 
 impl Transaction {
     pub fn get(&self, key: &[u8]) -> Result<Option<Bytes>> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     pub fn scan(self: &Arc<Self>, lower: Bound<&[u8]>, upper: Bound<&[u8]>) -> Result<TxnIterator> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     pub fn put(&self, key: &[u8], value: &[u8]) {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     pub fn delete(&self, key: &[u8]) {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     pub fn commit(&self) -> Result<()> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 }
 
@@ -73,13 +71,13 @@ type SkipMapRangeIter<'a> =
 
 #[self_referencing]
 pub struct TxnLocalIterator {
-    /// Stores a reference to the skipmap.
+    /// 存储对 skipmap 的引用。
     map: Arc<SkipMap<Bytes, Bytes>>,
-    /// Stores a skipmap iterator that refers to the lifetime of `TxnLocalIterator` itself.
+    /// 存储一个 skipmap 迭代器，该迭代器引用 `TxnLocalIterator` 自身的生命周期。
     #[borrows(map)]
     #[not_covariant]
     iter: SkipMapRangeIter<'this>,
-    /// Stores the current key-value pair.
+    /// 存储当前的键值对。
     item: (Bytes, Bytes),
 }
 
@@ -87,19 +85,19 @@ impl StorageIterator for TxnLocalIterator {
     type KeyType<'a> = &'a [u8];
 
     fn value(&self) -> &[u8] {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     fn key(&self) -> &[u8] {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     fn is_valid(&self) -> bool {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     fn next(&mut self) -> Result<()> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 }
 
@@ -113,7 +111,7 @@ impl TxnIterator {
         txn: Arc<Transaction>,
         iter: TwoMergeIterator<TxnLocalIterator, FusedIterator<LsmIterator>>,
     ) -> Result<Self> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 }
 
@@ -136,7 +134,7 @@ impl StorageIterator for TxnIterator {
     }
 
     fn next(&mut self) -> Result<()> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     fn num_active_iterators(&self) -> usize {

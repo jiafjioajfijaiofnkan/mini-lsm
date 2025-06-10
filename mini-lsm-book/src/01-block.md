@@ -2,119 +2,96 @@
   mini-lsm-book © 2022-2025 by Alex Chi Z is licensed under CC BY-NC-SA 4.0
 -->
 
-# Block Builder and Block Iterator
+# 块构建器和块迭代器 (Block Builder and Block Iterator)
 
 <div class="warning">
 
-This is a legacy version of the Mini-LSM course and we will not maintain it anymore. We now have a better version of this course and this chapter is now part of [Mini-LSM Week 1 Day 3: Blocks](./week1-03-block.md).
+这是 Mini-LSM 课程的旧版本，我们将不再维护它。我们现在有了这个课程的更好版本，本章内容现在是 [Mini-LSM 第 1 周第 3 天：块](./week1-03-block.md) 的一部分。
 
 </div>
 
 <!-- toc -->
 
-In this part, you will need to modify:
+在这一部分，您需要修改：
 
 * `src/block/builder.rs`
 * `src/block/iterator.rs`
 * `src/block.rs`
 
-You can use `cargo x copy-test day1` to copy our provided test cases to the starter code directory. After you have
-finished this part, use `cargo x scheck` to check the style and run all test cases. If you want to write your own
-test cases, write a new module `#[cfg(test)] mod user_tests { /* your test cases */ }` in `block.rs`. Remember to remove
-`#![allow(...)]` at the top of the modules you modified so that cargo clippy can actually check the styles.
+您可以使用 `cargo x copy-test day1` 将我们提供的测试用例复制到入门代码目录。完成此部分后，使用 `cargo x scheck` 检查样式并运行所有测试用例。如果您想编写自己的测试用例，请在 `block.rs` 中编写一个新的模块 `#[cfg(test)] mod user_tests { /* 您的测试用例 */ }`。请记住移除您修改的模块顶部的 `#![allow(...)]`，以便 cargo clippy 能够实际检查样式。
 
-## Task 1 - Block Builder
+## 任务 1 - 块构建器 (Block Builder)
 
-Block is the minimum read unit in LSM. It is of 4KB size in general, similar to database pages. In each block, we will
-store a sequence of sorted key-value pairs.
+块 (Block) 是 LSM (日志结构合并树) 中最小的读取单元。它通常为 4KB 大小，类似于数据库页面。在每个块中，我们将存储一系列有序的键值对。
 
-You will need to modify `BlockBuilder` in `src/block/builder.rs` to build the encoded data and the offset array.
-The block contains two parts: data and offsets.
+您需要修改 `src/block/builder.rs` 中的 `BlockBuilder` 来构建编码后的数据和偏移量数组。块包含两部分：数据和偏移量。
 
 ```
 ---------------------------------------------------------------------
-| data  | offsets | meta  |
+| 数据 (data) | 偏移量 (offsets) | 元数据 (meta) |
 | ----- | ------- | ----- |
-| entry | entry   | entry | entry | offset | offset | offset | offset | num_of_elements |
+| 条目 (entry) | 条目 (entry) | 条目 (entry) | 条目 (entry) | 偏移量 | 偏移量 | 偏移量 | 偏移量 | 元素数量 (num_of_elements) |
 ---------------------------------------------------------------------
 ```
 
-When user adds a key-value pair to a block (which is an entry), we will need to serialize it into the following format:
+当用户向块中添加一个键值对（即一个条目）时，我们需要将其序列化为以下格式：
 
 ```
 -----------------------------------------------------------------------
-|                           Entry #1                            | ... |
+| 条目 #1 (Entry #1) | ... |
 -----------------------------------------------------------------------
 | key_len (2B) | key (keylen) | value_len (2B) | value (varlen) | ... |
 -----------------------------------------------------------------------
 ```
 
-Key length and value length are both 2 bytes, which means their maximum lengths are 65535. (Internally stored as `u16`)
+键长度 (key_len) 和值长度 (value_len) 均为 2 字节，这意味着它们的最大长度为 65535。（内部存储为 `u16`）
 
-We assume that keys will never be empty, and values can be empty. An empty value means that the corresponding key has
-been deleted in the view of other parts of the system. For the `BlockBuilder` and `BlockIterator`,
-we just treat the empty value as-is.
+我们假设键永远不会为空，而值可以为空。空值意味着相应的键在系统其他部分的视图中已被删除。对于 `BlockBuilder` 和 `BlockIterator`，我们只是按原样处理空值。
 
-At the end of each block, we will store the offsets of each entry and the total number of entries. For example, if
-the first entry is at 0th position of the block, and the second entry is at 12th position of the block.
+在每个块的末尾，我们将存储每个条目的偏移量和条目的总数。例如，如果第一个条目位于块的第 0 个位置，第二个条目位于块的第 12 个位置。
 
 ```
 -------------------------------
-|offset|offset|num_of_elements|
+|偏移量|偏移量|元素数量|
 -------------------------------
 |   0  |  12  |       2       |
 -------------------------------
 ```
 
-The footer of the block will be as above. Each of the number is stored as `u16`.
+块的尾部 (footer) 将如上所示。每个数字都存储为 `u16`。
 
-The block has a size limit, which is `target_size`. Unless the first key-value pair exceeds the target block size, you
-should ensure that the encoded block size is always less than or equal to `target_size`.
-(In the provided code, the `target_size` here is essentially the `block_size`)
+块有一个大小限制，即 `target_size`。除非第一个键值对超过目标块大小，否则您应确保编码后的块大小始终小于或等于 `target_size`。（在提供的代码中，此处的 `target_size` 本质上是 `block_size`）
 
-The `BlockBuilder` will produce the data part and unencoded entry offsets when `build` is called. The information will
-be stored in the `Block` struct. As key-value entries are stored in raw format and offsets are stored in a separate
-vector, this reduces unnecessary memory allocations and processing overhead when decoding data —— what you need to do
-is to simply copy the raw block data to the `data` vector and decode the entry offsets every 2 bytes, *instead of*
-creating something like `Vec<(Vec<u8>, Vec<u8>)>` to store all the key-value pairs in one block in memory. This compact
-memory layout is very efficient.
+当调用 `build` 时，`BlockBuilder` 将生成数据部分和未编码的条目偏移量。这些信息将存储在 `Block` 结构中。由于键值条目以原始格式存储，而偏移量存储在单独的向量中，这减少了解码数据时不必要的内存分配和处理开销 —— 您需要做的只是简单地将原始块数据复制到 `data` 向量中，并每 2 个字节解码一次条目偏移量，*而不是* 创建类似 `Vec<(Vec<u8>, Vec<u8>)>` 的结构来在内存中存储一个块中的所有键值对。这种紧凑的内存布局非常高效。
 
-For the encoding and decoding part, you'll need to modify `Block` in `src/block.rs`.
-Specifically, you are required to implement `Block::encode` and `Block::decode`,
-which will encode to / decode from the data layout illustrated in the above figures.
+对于编码和解码部分，您需要修改 `src/block.rs` 中的 `Block`。具体来说，您需要实现 `Block::encode` 和 `Block::decode`，它们将根据上图所示的数据布局进行编码/解码。
 
-## Task 2 - Block Iterator
+## 任务 2 - 块迭代器 (Block Iterator)
 
-Given a `Block` object, we will need to extract the key-value pairs. To do this, we create an iterator over a block and
-find the information we want.
+给定一个 `Block` 对象，我们需要提取键值对。为此，我们创建一个块的迭代器并找到我们想要的信息。
 
-`BlockIterator` can be created with an `Arc<Block>`. If `create_and_seek_to_first` is called, it will be positioned at
-the first key in the block. If `create_and_seek_to_key` is called, the iterator will be positioned at the first key
-that is `>=` the provided key. For example, if `1, 3, 5` is in a block.
+`BlockIterator` 可以使用 `Arc<Block>` 创建。如果调用 `create_and_seek_to_first`，它将被定位到块中的第一个键。如果调用 `create_and_seek_to_key`，迭代器将被定位到第一个大于等于 (>=) 所提供键的键。例如，如果块中包含 `1, 3, 5`。
 
 ```rust
 let mut iter = BlockIterator::create_and_seek_to_key(block, b"2");
 assert_eq!(iter.key(), b"3");
 ```
 
-The above `seek 2` will make the iterator to be positioned at the next available key of `2`, which in this case is `3`.
+上面的 `seek 2` 将使迭代器定位到 `2` 的下一个可用键，在本例中为 `3`。
 
-The iterator should copy `key` and `value` from the block and store them inside the iterator, so that users can access
-the key and the value without any extra copy with `fn key(&self) -> &[u8]`, which directly returns the reference of the
-locally-stored key and value.
+迭代器应从块中复制 `key` 和 `value` 并将它们存储在迭代器内部，以便用户可以使用 `fn key(&self) -> &[u8]` 直接访问本地存储的键和值的引用，而无需任何额外的复制。
 
-When `next` is called, the iterator will move to the next position. If we reach the end of the block, we can set `key`
-to empty and return `false` from `is_valid`, so that the caller can switch to another block if possible.
+当调用 `next` 时，迭代器将移动到下一个位置。如果我们到达块的末尾，我们可以将 `key` 设置为空，并从 `is_valid` 返回 `false`，以便调用者可以在可能的情况下切换到另一个块。
 
-After implementing this part, you should be able to pass all tests in `block/tests.rs`.
+完成此部分后，您应该能够通过 `block/tests.rs` 中的所有测试。
 
-## Extra Tasks
+## 额外任务 (Extra Tasks)
 
-Here is a list of extra tasks you can do to make the block encoding more robust and efficient.
+以下是一些您可以完成的额外任务，以使块编码更加健壮和高效。
 
-*Note: Some test cases might not pass after implementing this part. You might need to write your own test cases.*
+*注意：完成此部分后，某些测试用例可能无法通过。您可能需要编写自己的测试用例。*
 
-* Implement block checksum. Verify checksum when decoding the block.
-* Compress / Decompress block. Compress on `build` and decompress on decoding.
+* 实现块校验和 (block checksum)。在解码块时验证校验和。
+* 压缩/解压缩块。在 `build` 时压缩，在解码时解压缩。
 
 {{#include copyright.md}}

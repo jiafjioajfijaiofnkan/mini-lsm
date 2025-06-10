@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 use std::ops::Bound;
 use std::path::Path;
@@ -28,10 +26,9 @@ use crate::key::{KeyBytes, KeySlice, TS_DEFAULT, TS_RANGE_BEGIN, TS_RANGE_END};
 use crate::table::SsTableBuilder;
 use crate::wal::Wal;
 
-/// A basic mem-table based on crossbeam-skiplist.
+/// 基于 crossbeam-skiplist 的基本 memtable。
 ///
-/// An initial implementation of memtable is part of week 1, day 1. It will be incrementally implemented in other
-/// chapters of week 1 and week 2.
+/// memtable 的初始实现是第 1 周第 1 天的一部分。它将在第 1 周和第 2 周的其他章节中逐步实现。
 pub struct MemTable {
     pub(crate) map: Arc<SkipMap<KeyBytes, Bytes>>,
     wal: Option<Wal>,
@@ -39,7 +36,7 @@ pub struct MemTable {
     approximate_size: Arc<AtomicUsize>,
 }
 
-/// Create a bound of `Bytes` from a bound of `&[u8]`.
+/// 从 `&[u8]` 的边界创建一个 `Bytes` 的边界。
 pub(crate) fn map_bound(bound: Bound<&[u8]>) -> Bound<Bytes> {
     match bound {
         Bound::Included(x) => Bound::Included(Bytes::copy_from_slice(x)),
@@ -48,7 +45,7 @@ pub(crate) fn map_bound(bound: Bound<&[u8]>) -> Bound<Bytes> {
     }
 }
 
-/// Create a bound of `Bytes` from a bound of `KeySlice`.
+/// 从 `KeySlice` 的边界创建一个 `Bytes` 的边界。
 pub(crate) fn map_key_bound(bound: Bound<KeySlice>) -> Bound<KeyBytes> {
     match bound {
         Bound::Included(x) => Bound::Included(KeyBytes::from_bytes_with_ts(
@@ -63,7 +60,7 @@ pub(crate) fn map_key_bound(bound: Bound<KeySlice>) -> Bound<KeyBytes> {
     }
 }
 
-/// Create a bound of `KeySlice` from a bound of `&[u8]`.
+/// 从 `&[u8]` 的边界创建一个 `KeySlice` 的边界。
 pub(crate) fn map_key_bound_plus_ts<'a>(
     lower: Bound<&'a [u8]>,
     upper: Bound<&'a [u8]>,
@@ -77,9 +74,9 @@ pub(crate) fn map_key_bound_plus_ts<'a>(
         },
         match upper {
             Bound::Included(x) => {
-                // Note that we order the ts descending, but for a MVCC scan, we need all the history
-                // so that we can access the latest key in case it is not updated in the current ts.
-                // Therefore, we need to scan all the way to ts 0.
+                // 请注意，我们按降序排列时间戳，但对于 MVCC 扫描，我们需要所有历史记录
+                // 以便在当前时间戳未更新的情况下访问最新的键。
+                // 因此，我们需要一直扫描到时间戳 0。
                 Bound::Included(KeySlice::from_slice(x, TS_RANGE_END))
             }
             Bound::Excluded(x) => Bound::Excluded(KeySlice::from_slice(x, TS_RANGE_BEGIN)),
@@ -89,7 +86,7 @@ pub(crate) fn map_key_bound_plus_ts<'a>(
 }
 
 impl MemTable {
-    /// Create a new mem-table.
+    /// 创建一个新的 memtable。
     pub fn create(id: usize) -> Self {
         Self {
             id,
@@ -99,7 +96,7 @@ impl MemTable {
         }
     }
 
-    /// Create a new mem-table with WAL
+    /// 创建一个新的带 WAL 的 memtable
     pub fn create_with_wal(id: usize, path: impl AsRef<Path>) -> Result<Self> {
         Ok(Self {
             id,
@@ -109,7 +106,7 @@ impl MemTable {
         })
     }
 
-    /// Create a memtable from WAL
+    /// 从 WAL 创建一个 memtable
     pub fn recover_from_wal(id: usize, path: impl AsRef<Path>) -> Result<Self> {
         let map = Arc::new(SkipMap::new());
         Ok(Self {
@@ -120,7 +117,7 @@ impl MemTable {
         })
     }
 
-    /// Get a value by key. Should not be used in week 3.
+    /// 通过键获取值。不应在第 3 周使用。
     pub fn get(&self, key: KeySlice) -> Option<Bytes> {
         let key_bytes = KeyBytes::from_bytes_with_ts(
             Bytes::from_static(unsafe { std::mem::transmute::<&[u8], &[u8]>(key.key_ref()) }),
@@ -148,16 +145,16 @@ impl MemTable {
         )
     }
 
-    /// Put a key-value pair into the mem-table.
+    /// 将键值对放入 memtable。
     ///
-    /// In week 1, day 1, simply put the key-value pair into the skipmap.
-    /// In week 2, day 6, also flush the data to WAL.
-    /// In week 3, day 5, modify the function to use the batch API.
+    /// 在第 1 周第 1 天，只需将键值对放入 skiplist 即可。
+    /// 在第 2 周第 6 天，同时将数据刷写到 WAL。
+    /// 在第 3 周第 5 天，修改函数以使用批处理 API。
     pub fn put(&self, key: KeySlice, value: &[u8]) -> Result<()> {
         self.put_batch(&[(key, value)])
     }
 
-    /// Implement this in week 3, day 5.
+    /// 在第 3 周第 5 天实现此功能。
     pub fn put_batch(&self, data: &[(KeySlice, &[u8])]) -> Result<()> {
         let mut estimated_size = 0;
         for (key, value) in data {
@@ -182,7 +179,7 @@ impl MemTable {
         Ok(())
     }
 
-    /// Get an iterator over a range of keys.
+    /// 获取键范围的迭代器。
     pub fn scan(&self, lower: Bound<KeySlice>, upper: Bound<KeySlice>) -> MemTableIterator {
         let (lower, upper) = (map_key_bound(lower), map_key_bound(upper));
         let mut iter = MemTableIteratorBuilder {
@@ -195,7 +192,7 @@ impl MemTable {
         iter
     }
 
-    /// Flush the mem-table to SSTable. Implement in week 1 day 6.
+    /// 将 memtable 刷写到 SSTable。在第 1 周第 6 天实现。
     pub fn flush(&self, builder: &mut SsTableBuilder) -> Result<()> {
         for entry in self.map.iter() {
             builder.add(entry.key().as_key_slice(), &entry.value()[..]);
@@ -212,7 +209,7 @@ impl MemTable {
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
-    /// Only use this function when closing the database
+    /// 仅在关闭数据库时使用此函数
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
@@ -226,19 +223,18 @@ type SkipMapRangeIter<'a> = crossbeam_skiplist::map::Range<
     Bytes,
 >;
 
-/// An iterator over a range of `SkipMap`. This is a self-referential structure and please refer to week 1, day 2
-/// chapter for more information.
+/// `SkipMap` 范围的迭代器。这是一个自引用结构，更多信息请参阅第 1 周第 2 天的章节。
 ///
-/// This is part of week 1, day 2.
+/// 这是第 1 周第 2 天的一部分。
 #[self_referencing]
 pub struct MemTableIterator {
-    /// Stores a reference to the skipmap.
+    /// 存储对 skiplist 的引用。
     map: Arc<SkipMap<KeyBytes, Bytes>>,
-    /// Stores a skipmap iterator that refers to the lifetime of `MemTableIterator` itself.
+    /// 存储一个 skiplist 迭代器，该迭代器引用 `MemTableIterator` 自身的生命周期。
     #[borrows(map)]
     #[not_covariant]
     iter: SkipMapRangeIter<'this>,
-    /// Stores the current key-value pair.
+    /// 存储当前的键值对。
     item: (KeyBytes, Bytes),
 }
 

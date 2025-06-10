@@ -14,6 +14,6 @@
   limitations under the License.
 -->
 
-# Week 3 Solution
+# 第 3 周解决方案 (Week 3 Solution)
 
-This is the solution of Mini-LSM week 3 with MVCC implementation.
+这是 Mini-LSM 第 3 周包含 MVCC (多版本并发控制) 实现的解决方案。

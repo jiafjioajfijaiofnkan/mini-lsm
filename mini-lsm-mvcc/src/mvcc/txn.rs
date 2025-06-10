@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 use std::{
     collections::HashSet,
@@ -40,14 +38,14 @@ pub struct Transaction {
     pub(crate) inner: Arc<LsmStorageInner>,
     pub(crate) local_storage: Arc<SkipMap<Bytes, Bytes>>,
     pub(crate) committed: Arc<AtomicBool>,
-    /// Write set and read set
+    /// 写集合和读集合
     pub(crate) key_hashes: Option<Mutex<(HashSet<u32>, HashSet<u32>)>>,
 }
 
 impl Transaction {
     pub fn get(&self, key: &[u8]) -> Result<Option<Bytes>> {
         if self.committed.load(Ordering::SeqCst) {
-            panic!("cannot operate on committed txn!");
+            panic!("不能对已提交的事务进行操作！");
         }
         if let Some(guard) = &self.key_hashes {
             let mut guard = guard.lock();
@@ -66,7 +64,7 @@ impl Transaction {
 
     pub fn scan(self: &Arc<Self>, lower: Bound<&[u8]>, upper: Bound<&[u8]>) -> Result<TxnIterator> {
         if self.committed.load(Ordering::SeqCst) {
-            panic!("cannot operate on committed txn!");
+            panic!("不能对已提交的事务进行操作！");
         }
         let mut local_iter = TxnLocalIteratorBuilder {
             map: self.local_storage.clone(),
@@ -88,7 +86,7 @@ impl Transaction {
 
     pub fn put(&self, key: &[u8], value: &[u8]) {
         if self.committed.load(Ordering::SeqCst) {
-            panic!("cannot operate on committed txn!");
+            panic!("不能对已提交的事务进行操作！");
         }
         self.local_storage
             .insert(Bytes::copy_from_slice(key), Bytes::copy_from_slice(value));
@@ -101,7 +99,7 @@ impl Transaction {
 
     pub fn delete(&self, key: &[u8]) {
         if self.committed.load(Ordering::SeqCst) {
-            panic!("cannot operate on committed txn!");
+            panic!("不能对已提交的事务进行操作！");
         }
         self.local_storage
             .insert(Bytes::copy_from_slice(key), Bytes::new());
@@ -115,14 +113,14 @@ impl Transaction {
     pub fn commit(&self) -> Result<()> {
         self.committed
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .expect("cannot operate on committed txn!");
+            .expect("不能对已提交的事务进行操作！");
         let _commit_lock = self.inner.mvcc().commit_lock.lock();
         let serializability_check;
         if let Some(guard) = &self.key_hashes {
             let guard = guard.lock();
             let (write_set, read_set) = &*guard;
             println!(
-                "commit txn: write_set: {:?}, read_set: {:?}",
+                "提交事务：写入集: {:?}, 读取集: {:?}",
                 write_set, read_set
             );
             if !write_set.is_empty() {
@@ -130,7 +128,7 @@ impl Transaction {
                 for (_, txn_data) in committed_txns.range((self.read_ts + 1)..) {
                     for key_hash in read_set {
                         if txn_data.key_hashes.contains(key_hash) {
-                            bail!("serializable check failed");
+                            bail!("可串行化检查失败");
                         }
                     }
                 }
@@ -166,7 +164,7 @@ impl Transaction {
             );
             assert!(old_data.is_none());
 
-            // remove unneeded txn data
+            // 移除不需要的事务数据
             let watermark = self.inner.mvcc().watermark();
             while let Some(entry) = committed_txns.first_entry() {
                 if *entry.key() < watermark {
@@ -191,13 +189,13 @@ type SkipMapRangeIter<'a> =
 
 #[self_referencing]
 pub struct TxnLocalIterator {
-    /// Stores a reference to the skipmap.
+    /// 存储对 skipmap 的引用。
     map: Arc<SkipMap<Bytes, Bytes>>,
-    /// Stores a skipmap iterator that refers to the lifetime of `TxnLocalIterator` itself.
+    /// 存储一个 skipmap 迭代器，该迭代器引用 `TxnLocalIterator` 自身的生命周期。
     #[borrows(map)]
     #[not_covariant]
     iter: SkipMapRangeIter<'this>,
-    /// Stores the current key-value pair.
+    /// 存储当前的键值对。
     item: (Bytes, Bytes),
 }
 

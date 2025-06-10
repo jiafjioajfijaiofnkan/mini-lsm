@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 mod wrapper;
 
@@ -31,10 +29,10 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone, ValueEnum)]
 enum CompactionStrategy {
-    Simple,
-    Leveled,
-    Tiered,
-    None,
+    Simple, // 简单
+    Leveled, // 分层
+    Tiered, // 阶梯
+    None, // 无
 }
 
 #[derive(Parser, Debug)]
@@ -45,9 +43,9 @@ struct Args {
     #[arg(long, default_value = "leveled")]
     compaction: CompactionStrategy,
     #[arg(long)]
-    enable_wal: bool,
+    enable_wal: bool, // 启用 WAL (预写日志)
     #[arg(long)]
-    serializable: bool,
+    serializable: bool, // 可串行化
 }
 
 struct ReplHandler {
@@ -67,20 +65,20 @@ impl ReplHandler {
                 }
 
                 println!(
-                    "{} values filled with epoch {}",
+                    "{} 个值已填充，纪元 (epoch) {}",
                     end - begin + 1,
                     self.epoch
                 );
             }
             Command::Del { key } => {
                 self.lsm.delete(key.as_bytes())?;
-                println!("{} deleted", key);
+                println!("{} 已删除", key);
             }
             Command::Get { key } => {
                 if let Some(value) = self.lsm.get(key.as_bytes())? {
                     println!("{}={:?}", key, value);
                 } else {
-                    println!("{} not exist", key);
+                    println!("{} 不存在", key);
                 }
             }
             Command::Scan { begin, end } => match (begin, end) {
@@ -99,7 +97,7 @@ impl ReplHandler {
                         cnt += 1;
                     }
                     println!();
-                    println!("{} keys scanned", cnt);
+                    println!("扫描了 {} 个键", cnt);
                 }
                 (Some(begin), Some(end)) => {
                     let mut iter = self.lsm.scan(
@@ -117,23 +115,23 @@ impl ReplHandler {
                         cnt += 1;
                     }
                     println!();
-                    println!("{} keys scanned", cnt);
+                    println!("扫描了 {} 个键", cnt);
                 }
                 _ => {
-                    println!("invalid command");
+                    println!("无效命令");
                 }
             },
             Command::Dump => {
                 self.lsm.dump_structure();
-                println!("dump success");
+                println!("转储成功");
             }
             Command::Flush => {
                 self.lsm.force_flush()?;
-                println!("flush success");
+                println!("刷写成功");
             }
             Command::FullCompaction => {
                 self.lsm.force_full_compaction()?;
-                println!("full compaction success");
+                println!("完全压缩成功");
             }
             Command::Quit | Command::Close => {
                 self.lsm.close()?;
@@ -214,7 +212,7 @@ impl Command {
             map(
                 tuple((tag_no_case("get"), space1, string)),
                 |(_, _, key)| Command::Get { key },
-            )(i)
+            })(i)
         };
 
         let scan = |i| {
@@ -268,7 +266,7 @@ impl Repl {
         loop {
             let readline = self.editor.readline(&self.prompt)?;
             if readline.trim().is_empty() {
-                // Skip noop
+                // 跳过空操作 (Skip noop)
                 continue;
             }
             let command = Command::parse(&readline)?;
@@ -278,7 +276,7 @@ impl Repl {
     }
 
     fn bootstrap(&mut self) -> Result<()> {
-        println!("Welcome to {}!", self.app_name);
+        println!("欢迎来到 {}！", self.app_name);
         println!("{}", self.description);
         println!();
         Ok(())
@@ -295,7 +293,7 @@ impl ReplBuilder {
     pub fn new() -> Self {
         Self {
             app_name: "mini-lsm-cli".to_string(),
-            description: "A CLI for mini-lsm".to_string(),
+            description: "mini-lsm 的命令行界面".to_string(), // A CLI for mini-lsm
             prompt: "mini-lsm-cli> ".to_string(),
         }
     }
@@ -366,7 +364,7 @@ fn main() -> Result<()> {
 
     let repl = ReplBuilder::new()
         .app_name("mini-lsm-cli")
-        .description("A CLI for mini-lsm")
+        .description("mini-lsm 的命令行界面") // A CLI for mini-lsm
         .prompt("mini-lsm-cli> ")
         .build(ReplHandler { epoch: 0, lsm })?;
 

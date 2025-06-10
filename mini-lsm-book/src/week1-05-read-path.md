@@ -2,64 +2,64 @@
   mini-lsm-book © 2022-2025 by Alex Chi Z is licensed under CC BY-NC-SA 4.0
 -->
 
-# Read Path
+# 读取路径 (Read Path)
 
-![Chapter Overview](./lsm-tutorial/week1-05-overview.svg)
+![本章概览](./lsm-tutorial/week1-05-overview.svg)
 
-In this chapter, you will:
+在本章中，您将：
 
-* Integrate SST into the LSM read path.
-* Implement LSM read path `get` with SSTs.
-* Implement LSM read path `scan` with SSTs.
+* 将 SST (有序字符串表) 集成到 LSM 读取路径中。
+* 使用 SST 实现 LSM 读取路径 `get`。
+* 使用 SST 实现 LSM 读取路径 `scan`。
 
-To copy the test cases into the starter code and run them,
+要将测试用例复制到入门代码并运行它们：
 
 ```
 cargo x copy-test --week 1 --day 5
 cargo x scheck
 ```
 
-## Task 1: Two Merge Iterator
+## 任务 1：双路合并迭代器 (Two Merge Iterator)
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/iterators/two_merge_iterator.rs
 ```
 
-You have already implemented a merge iterator that merges iterators of the same type (i.e., memtable iterators). Now that we have implemented the SST formats, we have both on-disk SST structures and in-memory memtables. When we scan from the storage engine, we will need to merge data from both memtable iterators and SST iterators into a single one. In this case, we need a `TwoMergeIterator<X, Y>` that merges two different types of iterators.
+您已经实现了一个合并迭代器，用于合并相同类型的迭代器（例如，内存表迭代器）。既然我们已经实现了 SST 格式，我们就同时拥有了磁盘上的 SST 结构和内存中的内存表。当我们从存储引擎扫描时，需要将来自内存表迭代器和 SST 迭代器的数据合并为一个。在这种情况下，我们需要一个 `TwoMergeIterator<X, Y>` 来合并两种不同类型的迭代器。
 
-You can implement `TwoMergeIterator` in `two_merge_iterator.rs`. As we only have two iterators here, we do not need to maintain a binary heap. Instead, we can simply use a flag to indicate which iterator to read. Similar to `MergeIterator`, if the same key is found in both of the iterator, the first iterator takes the precedence.
+您可以在 `two_merge_iterator.rs` 中实现 `TwoMergeIterator`。由于这里我们只有两个迭代器，因此不需要维护二叉堆。相反，我们可以简单地使用一个标志来指示从哪个迭代器读取。与 `MergeIterator` 类似，如果两个迭代器中都找到相同的键，则第一个迭代器优先。
 
-## Task 2: Read Path - Scan
+## 任务 2：读取路径 - Scan (Read Path - Scan)
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/lsm_iterator.rs
 src/lsm_storage.rs
 ```
 
-After implementing `TwoMergeIterator`, we can change the `LsmIteratorInner` to have the following type:
+实现 `TwoMergeIterator` 后，我们可以将 `LsmIteratorInner` 更改为以下类型：
 
 ```rust,no_run
 type LsmIteratorInner =
     TwoMergeIterator<MergeIterator<MemTableIterator>, MergeIterator<SsTableIterator>>;
 ```
 
-So that our internal iterator of the LSM storage engine will be an iterator combining both data from the memtables and the SSTs.
+这样，我们 LSM 存储引擎的内部迭代器将是一个结合了来自内存表和 SST 数据的迭代器。
 
-Currently, our SST iterator doesn't support an end bound for scans. To address this, you'll need to implement this boundary check within the `LsmIterator` itself. This involves updating the `LsmIterator::new` constructor to accept an `end_bound` parameter:
+目前，我们的 SST 迭代器不支持扫描的结束边界。为了解决这个问题，您需要在 `LsmIterator` 内部实现此边界检查。这涉及到更新 `LsmIterator::new` 构造函数以接受 `end_bound` 参数：
 
 ```rust,no_run
 pub(crate) fn new(iter: LsmIteratorInner, end_bound: Bound<Bytes>) -> Result<Self> {}
 ```
 
-You will then need to modify the `LsmIterator`'s iteration logic to ensure it stops when the keys from the inner iterator reach or exceed this specified `end_bound`.
+然后，您需要修改 `LsmIterator` 的迭代逻辑，以确保当内部迭代器的键达到或超过指定的 `end_bound` 时停止。
 
-Our test cases will generate some memtables and SSTs in `l0_sstables`, and you will need to scan all of these data out correctly in this task. You do not need to flush SSTs until next chapter. Therefore, you can go ahead and modify your `LsmStorageInner::scan` interface to create a merge iterator over all memtables and SSTs, so as to finish the read path of your storage engine.
+我们的测试用例将在 `l0_sstables` 中生成一些内存表和 SST，您需要在此任务中正确扫描所有这些数据。在下一章之前，您不需要刷写 SST。因此，您可以继续修改您的 `LsmStorageInner::scan` 接口，以创建所有内存表和 SST 的合并迭代器，从而完成存储引擎的读取路径。
 
-Because `SsTableIterator::create` involves I/O operations and might be slow, we do not want to do this in the `state` critical section. Therefore, you should firstly take read the `state` and clone the `Arc` of the LSM state snapshot. Then, you should drop the lock. After that, you can go through all L0 SSTs and create iterators for each of them, then create a merge iterator to retrieve the data.
+因为 `SsTableIterator::create` 涉及 I/O 操作并且可能很慢，所以我们不希望在 `state` 临界区中执行此操作。因此，您应该首先获取 `state` 的读锁并克隆 LSM 状态快照的 `Arc`。然后，您应该释放锁。之后，您可以遍历所有 L0 SST 并为每个 SST 创建迭代器，然后创建一个合并迭代器来检索数据。
 
 ```rust,no_run
 fn scan(&self) {
@@ -67,32 +67,32 @@ fn scan(&self) {
         let guard = self.state.read();
         Arc::clone(&guard)
     };
-    // create iterators and seek them
+    // 创建迭代器并进行寻址
 }
 ```
 
-In the LSM storage state, we only store the SST ids in the `l0_sstables` vector. You will need to retrieve the actual SST object from the `sstables` hash map.
+在 LSM 存储状态中，我们仅在 `l0_sstables` 向量中存储 SST ID。您需要从 `sstables` 哈希映射中检索实际的 SST 对象。
 
-## Task 3: Read Path - Get
+## 任务 3：读取路径 - Get (Read Path - Get)
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/lsm_storage.rs
 ```
 
-For get requests, it will be processed as lookups in the memtables, and then scans on the SSTs. You can create a merge iterator over all SSTs after probing all memtables. You can seek to the key that the user wants to lookup. There are two possibilities of the seek: the key is the same as what the user probes, and the key is not the same / does not exist. You should only return the value to the user when the key exists and is the same as probed. You should also reduce the critical section of the state lock as in the previous section. Also remember to handle deleted keys.
+对于 get 请求，它将被处理为在内存表中查找，然后在 SST 上扫描。在探测所有内存表之后，您可以创建所有 SST 的合并迭代器。您可以寻址到用户想要查找的键。寻址有两种可能性：键与用户探测的相同，或者键不同/不存在。只有当键存在且与探测的相同，并且值不为空时，才应将值返回给用户。您还应该像上一节中那样减少状态锁的临界区。另外请记住处理已删除的键。
 
-## Test Your Understanding
+## 测试您的理解 (Test Your Understanding)
 
-* Consider the case that a user has an iterator that iterates the whole storage engine, and the storage engine is 1TB large, so that it takes ~1 hour to scan all the data. What would be the problems if the user does so? (This is a good question and we will ask it several times at different points of the course...)
-* Another popular interface provided by some LSM-tree storage engines is multi-get (or vectored get). The user can pass a list of keys that they want to retrieve. The interface returns the value of each of the key. For example, `multi_get(vec!["a", "b", "c", "d"]) -> a=1,b=2,c=3,d=4`. Obviously, an easy implementation is to simply doing a single get for each of the key. How will you implement the multi-get interface, and what optimizations you can do to make it more efficient? (Hint: some operations during the get process will only need to be done once for all keys, and besides that, you can think of an improved disk I/O interface to better support this multi-get interface).
+* 考虑用户拥有一个迭代整个存储引擎的迭代器，并且存储引擎有 1TB 大，因此扫描所有数据大约需要 1 小时。如果用户这样做，会出现什么问题？（这是一个很好的问题，我们将在课程的不同阶段多次提问……）
+* 一些 LSM 树存储引擎提供的另一个流行接口是 multi-get（或 vectored get）。用户可以传递他们想要检索的键的列表。该接口返回每个键的值。例如，`multi_get(vec!["a", "b", "c", "d"]) -> a=1,b=2,c=3,d=4`。显然，一个简单的实现是简单地为每个键执行一次 get 操作。您将如何实现 multi-get 接口，以及您可以进行哪些优化以使其更高效？（提示：get 过程中的某些操作对于所有键只需要执行一次，此外，您可以考虑改进磁盘 I/O 接口以更好地支持此 multi-get 接口）。
 
-We do not provide reference answers to the questions, and feel free to discuss about them in the Discord community.
+我们不提供这些问题的参考答案，欢迎在 Discord 社区中讨论它们。
 
-## Bonus Tasks
+## 奖励任务 (Bonus Tasks)
 
-* **The Cost of Dynamic Dispatch.** Implement a `Box<dyn StorageIterator>` version of merge iterators and benchmark to see the performance differences.
-* **Parallel Seek.** Creating a merge iterator requires loading the first block of all underlying SSTs (when you create `SSTIterator`). You may parallelize the process of creating iterators.
+* **动态分派的成本 (The Cost of Dynamic Dispatch)。** 实现一个 `Box<dyn StorageIterator>` 版本的合并迭代器，并进行基准测试以查看性能差异。
+* **并行寻址 (Parallel Seek)。** 创建合并迭代器需要加载所有底层 SST 的第一个块（当您创建 `SSTIterator` 时）。您可以并行化创建迭代器的过程。
 
 {{#include copyright.md}}

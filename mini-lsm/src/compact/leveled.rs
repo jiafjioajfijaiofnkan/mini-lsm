@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 use std::collections::HashSet;
 
@@ -20,7 +18,7 @@ use crate::lsm_storage::LsmStorageState;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LeveledCompactionTask {
-    // if upper_level is `None`, then it is L0 compaction
+    // 如果 upper_level 为 `None`，则表示是 L0 压缩
     pub upper_level: Option<usize>,
     pub upper_level_sst_ids: Vec<usize>,
     pub lower_level: usize,
@@ -79,8 +77,8 @@ impl LeveledCompactionController {
         &self,
         snapshot: &LsmStorageState,
     ) -> Option<LeveledCompactionTask> {
-        // step 1: compute target level size
-        let mut target_level_size = (0..self.options.max_levels).map(|_| 0).collect::<Vec<_>>(); // exclude level 0
+        // 步骤 1：计算目标层级大小
+        let mut target_level_size = (0..self.options.max_levels).map(|_| 0).collect::<Vec<_>>(); // 不包括 L0
         let mut real_level_size = Vec::with_capacity(self.options.max_levels);
         let mut base_level = self.options.max_levels;
         for i in 0..self.options.max_levels {
@@ -94,7 +92,7 @@ impl LeveledCompactionController {
         }
         let base_level_size_bytes = self.options.base_level_size_mb * 1024 * 1024;
 
-        // select base level and compute target level size
+        // 选择基础层级并计算目标层级大小
         target_level_size[self.options.max_levels - 1] =
             real_level_size[self.options.max_levels - 1].max(base_level_size_bytes);
         for i in (0..(self.options.max_levels - 1)).rev() {
@@ -108,9 +106,9 @@ impl LeveledCompactionController {
             }
         }
 
-        // Flush L0 SST is the top priority
+        // 刷写 L0 SST 是最高优先级
         if snapshot.l0_sstables.len() >= self.options.level0_file_num_compaction_trigger {
-            println!("flush L0 SST to base level {}", base_level);
+            println!("将 L0 SST 刷写到基础层级 {}", base_level);
             return Some(LeveledCompactionTask {
                 upper_level: None,
                 upper_level_sst_ids: snapshot.l0_sstables.clone(),
@@ -135,7 +133,7 @@ impl LeveledCompactionController {
         let priority = priorities.first();
         if let Some((_, level)) = priority {
             println!(
-                "target level sizes: {:?}, real level sizes: {:?}, base_level: {}",
+                "目标层级大小: {:?}, 实际层级大小: {:?}, 基础层级: {}",
                 target_level_size
                     .iter()
                     .map(|x| format!("{:.3}MB", *x as f64 / 1024.0 / 1024.0))
@@ -148,10 +146,12 @@ impl LeveledCompactionController {
             );
 
             let level = *level;
-            let selected_sst = snapshot.levels[level - 1].1.iter().min().copied().unwrap(); // select the oldest sst to compact
+            let selected_sst = snapshot.levels[level - 1].1.iter().min().copied().unwrap(); // 选择最旧的 SST 进行压缩
             println!(
-                "compaction triggered by priority: {level} out of {:?}, select {selected_sst} for compaction",
-                priorities
+                "由优先级触发的压缩: 层级 {} (共 {:?}), 选择 SST {} 进行压缩",
+                level,
+                priorities,
+                selected_sst
             );
             return Some(LeveledCompactionTask {
                 upper_level: Some(level),
@@ -230,7 +230,7 @@ impl LeveledCompactionController {
             .collect::<Vec<_>>();
         assert!(lower_level_sst_ids_set.is_empty());
         new_lower_level_ssts.extend(output);
-        // Don't sort the SST IDs during recovery because actual SSTs are not loaded at that point
+        // 恢复期间不要对 SST ID 进行排序，因为此时实际的 SST 尚未加载
         if !in_recovery {
             new_lower_level_ssts.sort_by(|x, y| {
                 snapshot

@@ -2,48 +2,48 @@
   mini-lsm-book © 2022-2025 by Alex Chi Z is licensed under CC BY-NC-SA 4.0
 -->
 
-# Snapshot Read - Engine Read Path and Transaction API
+# 快照读取 - 引擎读取路径和事务 API (Snapshot Read - Engine Read Path and Transaction API)
 
-In this chapter, you will:
+在本章中，您将：
 
-* Finish the read path based on previous chapter to support snapshot read.
-* Implement the transaction API to support snapshot read.
-* Implement the engine recovery process to correctly recover the commit timestamp.
+* 基于上一章完成读取路径，以支持快照读取。
+* 实现事务 API 以支持快照读取。
+* 实现引擎恢复过程以正确恢复提交时间戳。
 
-At the end of the day, your engine will be able to give the user a consistent view of the storage key space.
+在这一天结束时，您的引擎将能够为用户提供存储键空间的一致视图。
 
-During the refactor, you might need to change the signature of some functions from `&self` to `self: &Arc<Self>` as necessary.
+在重构过程中，您可能需要根据需要将某些函数的签名从 `&self` 更改为 `self: &Arc<Self>`。
 
-To run test cases,
+要运行测试用例：
 
 ```
 cargo x copy-test --week 3 --day 3
 cargo x scheck
 ```
 
-**Note: You will also need to pass test cases for 2.5 and 2.6 after finishing this chapter.**
+**注意：完成本章后，您还需要通过所有 <= 2.4 以及 2.5 和 2.6 的测试用例。**
 
-## Task 1: LSM Iterator with Read Timestamp
+## 任务 1：带有读取时间戳的 LSM 迭代器 (LSM Iterator with Read Timestamp)
 
-The goal of this chapter is to have something like:
+本章的目标是实现类似这样的功能：
 
 ```rust,no_run
 let snapshot1 = engine.new_txn();
-// write something to the engine
+// 向引擎写入一些内容
 let snapshot2 = engine.new_txn();
-// write something to the engine
-snapshot1.get(/* ... */); // we can retrieve a consistent snapshot of a previous state of the engine
+// 向引擎写入一些内容
+snapshot1.get(/* ... */); // 我们可以检索引擎先前状态的一致快照
 ```
 
-To achieve this, we can record the read timestamp (which is the latest committed timestamp) when creating the transaction. When we do a read operation over the transaction, we will only read all versions of the keys below or equal to the read timestamp.
+为实现此目的，我们可以在创建事务时记录读取时间戳（即最新的已提交时间戳）。当我们在事务上执行读取操作时，我们将只读取所有版本低于或等于该读取时间戳的键。
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/lsm_iterator.rs
 ```
 
-To do this, you will need to record a read timestamp in `LsmIterator`.
+为此，您需要在 `LsmIterator` 中记录一个读取时间戳。
 
 ```rust,no_run
 impl LsmIterator {
@@ -57,11 +57,11 @@ impl LsmIterator {
 }
 ```
 
-And you will need to change your LSM iterator `next` logic to find the correct key.
+并且您需要更改 LSM 迭代器的 `next` 逻辑以查找正确的键。
 
-## Task 2: Multi-Version Scan and Get
+## 任务 2：多版本扫描和获取 (Multi-Version Scan and Get)
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/mvcc.rs
@@ -69,51 +69,51 @@ src/mvcc/txn.rs
 src/lsm_storage.rs
 ```
 
-Now that we have `read_ts` in the LSM iterator, we can implement `scan` and `get` on the transaction structure, so that we can read data at a given point in the storage engine.
+既然我们在 LSM 迭代器中有了 `read_ts`，我们就可以在事务结构上实现 `scan` 和 `get`，以便我们可以在存储引擎的给定时间点读取数据。
 
-We recommend you to create helper functions like `scan_with_ts(/* original parameters */, read_ts: u64)` and `get_with_ts` if necessary in your `LsmStorageInner` structure. The original get/scan on the storage engine should be implemented as creating a transaction (snapshot) and do a get/scan over that transaction. The call path would be like:
+我们建议您在 `LsmStorageInner` 结构中根据需要创建类似 `scan_with_ts(/* 原始参数 */, read_ts: u64)` 和 `get_with_ts` 的辅助函数。存储引擎上的原始 get/scan 应实现为创建一个事务（快照）并在该事务上执行 get/scan。调用路径将如下所示：
 
 ```
 LsmStorageInner::scan -> new_txn and Transaction::scan -> LsmStorageInner::scan_with_ts
 ```
 
-To create a transaction in `LsmStorageInner::scan`, we will need to provide a `Arc<LsmStorageInner>` to the transaction constructor. Therefore, we can change the signature of `scan` to take `self: &Arc<Self>` instead of simply `&self`, so that we can create a transaction with `let txn = self.mvcc().new_txn(self.clone(), /* ... */)`.
+要在 `LsmStorageInner::scan` 中创建事务，我们需要向事务构造函数提供一个 `Arc<LsmStorageInner>`。因此，我们可以将 `scan` 的签名更改为接受 `self: &Arc<Self>` 而不是简单的 `&self`，这样我们就可以使用 `let txn = self.mvcc().new_txn(self.clone(), /* ... */)` 创建一个事务。
 
-You will also need to change your `scan` function to return a `TxnIterator`. We must ensure the snapshot is live when the user iterates the engine, and therefore, `TxnIterator` stores the snapshot object. Inside `TxnIterator`, we can store a `FusedIterator<LsmIterator>` for now. We will change it to something else later when we implement OCC.
+您还需要更改 `scan` 函数以返回 `TxnIterator`。我们必须确保在用户迭代引擎时快照是活动的，因此，`TxnIterator` 存储快照对象。目前，在 `TxnIterator` 内部，我们可以存储一个 `FusedIterator<LsmIterator>`。稍后在实现 OCC (乐观并发控制) 时，我们会将其更改为其他内容。
 
-You do not need to implement `Transaction::put/delete` for now, and all modifications will still go through the engine.
+您暂时不需要实现 `Transaction::put/delete`，所有修改仍将通过引擎进行。
 
-## Task 3: Store Largest Timestamp in SST
+## 任务 3：在 SST 中存储最大时间戳 (Store Largest Timestamp in SST)
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/table.rs
 src/table/builder.rs
 ```
 
-In your SST encoding, you should store the largest timestamp after the block metadata, and recover it when loading the SST. This would help the system decide the latest commit timestamp when recovering the system.
+在您的 SST 编码中，您应该在块元数据之后存储最大时间戳，并在加载 SST 时恢复它。这将有助于系统在恢复时确定最新的提交时间戳。
 
-## Task 4: Recover Commit Timestamp
+## 任务 4：恢复提交时间戳 (Recover Commit Timestamp)
 
-Now that we have largest timestamp information in the SSTs and timestamp information in the WAL, we can obtain the largest timestamp committed before the engine starts, and use that timestamp as the latest committed timestamp when creating the `mvcc` object.
+既然我们在 SST 中有了最大时间戳信息，在 WAL 中也有了时间戳信息，我们就可以获取引擎启动前已提交的最大时间戳，并在创建 `mvcc` 对象时使用该时间戳作为最新的已提交时间戳。
 
-If WAL is not enabled, you can simply compute the latest committed timestamp by finding the largest timestamp among SSTs. If WAL is enabled, you should further iterate all recovered memtables and find the largest timestamp.
+如果未启用 WAL，您可以简单地通过查找 SST 中的最大时间戳来计算最新的已提交时间戳。如果启用了 WAL，您应该进一步迭代所有已恢复的内存表并找到最大时间戳。
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/lsm_storage.rs
 ```
 
-We do not have test cases for this section. You should pass all persistence tests from previous chapters (including 2.5 and 2.6) after finishing this section.
+我们没有针对此部分的测试用例。完成此部分后，您应该通过前面章节中的所有持久性测试（包括 2.5 和 2.6）。
 
-## Test Your Understanding
+## 测试您的理解 (Test Your Understanding)
 
-* So far, we have assumed that our SST files use a monotonically increasing id as the file name. Is it okay to use `<level>_<begin_key>_<end_key>_<max_ts>.sst` as the SST file name? What might be the potential problems with that?
-* Consider an alternative implementation of transaction/snapshot. In our implementation, we have `read_ts` in our iterators and transaction context, so that the user can always access a consistent view of one version of the database based on the timestamp. Is it viable to store the current LSM state directly in the transaction context in order to gain a consistent snapshot? (i.e., all SST ids, their level information, and all memtables + ts) What are the pros/cons with that? What if the engine does not have memtables? What if the engine is running on a distributed storage system like S3 object store?
-* Consider that you are implementing a backup utility of the MVCC Mini-LSM engine. Is it enough to simply copy all SST files out without backing up the LSM state? Why or why not?
+* 到目前为止，我们假设我们的 SST 文件使用单调递增的 ID 作为文件名。使用 `<level>_<begin_key>_<end_key>_<max_ts>.sst` 作为 SST 文件名是否可以？这可能会有什么潜在问题？
+* 考虑事务/快照的另一种实现。在我们的实现中，我们在迭代器和事务上下文中都有 `read_ts`，以便用户可以始终根据时间戳访问数据库某个版本的一致视图。为了获得一致的快照，直接在事务上下文中存储当前的 LSM 状态（即所有 SST ID、它们的级别信息以及所有内存表 + ts）是否可行？这样做有什么优缺点？如果引擎没有内存表怎么办？如果引擎运行在像 S3 对象存储这样的分布式存储系统上呢？
+* 考虑您正在为 MVCC Mini-LSM 引擎实现备份实用程序。仅仅复制所有 SST 文件而不备份 LSM 状态是否足够？为什么？
 
-We do not provide reference answers to the questions, and feel free to discuss about them in the Discord community.
+我们不提供这些问题的参考答案，欢迎在 Discord 社区中讨论它们。
 
 {{#include copyright.md}}

@@ -1,4 +1,4 @@
-#![allow(dead_code)] // REMOVE THIS LINE once all modules are complete
+#![allow(dead_code)] // REMOVE THIS LINE once all modules are complete // 一旦所有模块完成，移除此行
 
 // Copyright (c) 2022-2025 Alex Chi Z
 //
@@ -13,6 +13,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// 版权所有 (c) 2022-2025 Alex Chi Z
+//
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 use std::{
     collections::BTreeMap, ops::Bound, os::unix::fs::MetadataExt, path::Path, sync::Arc,
@@ -67,7 +79,7 @@ impl StorageIterator for MockIterator {
         }
         if let Some(error_when) = self.error_when {
             if self.index == error_when {
-                bail!("fake error!");
+                bail!("虚假错误！");
             }
         }
         Ok(())
@@ -76,7 +88,7 @@ impl StorageIterator for MockIterator {
     fn key(&self) -> KeySlice {
         if let Some(error_when) = self.error_when {
             if self.index >= error_when {
-                panic!("invalid access after next returns an error!");
+                panic!("next 返回错误后无效访问！");
             }
         }
         KeySlice::for_testing_from_slice_no_ts(self.data[self.index].0.as_ref())
@@ -85,7 +97,7 @@ impl StorageIterator for MockIterator {
     fn value(&self) -> &[u8] {
         if let Some(error_when) = self.error_when {
             if self.index >= error_when {
-                panic!("invalid access after next returns an error!");
+                panic!("next 返回错误后无效访问！");
             }
         }
         self.data[self.index].1.as_ref()
@@ -94,7 +106,7 @@ impl StorageIterator for MockIterator {
     fn is_valid(&self) -> bool {
         if let Some(error_when) = self.error_when {
             if self.index >= error_when {
-                panic!("invalid access after next returns an error!");
+                panic!("next 返回错误后无效访问！");
             }
         }
         self.index < self.data.len()
@@ -114,14 +126,14 @@ where
         assert_eq!(
             k,
             iter.key().for_testing_key_ref(),
-            "expected key: {:?}, actual key: {:?}",
+            "预期键: {:?}, 实际键: {:?}",
             k,
             as_bytes(iter.key().for_testing_key_ref()),
         );
         assert_eq!(
             v,
             iter.value(),
-            "expected value: {:?}, actual value: {:?}",
+            "预期值: {:?}, 实际值: {:?}",
             v,
             as_bytes(iter.value()),
         );
@@ -129,7 +141,7 @@ where
     }
     assert!(
         !iter.is_valid(),
-        "iterator should not be valid at the end of the check"
+        "迭代器在检查结束时不应有效"
     );
 }
 
@@ -145,7 +157,7 @@ where
                 iter.key().for_testing_key_ref(),
                 iter.key().for_testing_ts()
             ),
-            "expected key: {:?}@{}, actual key: {:?}@{}",
+            "预期键: {:?}@{}, 实际键: {:?}@{}",
             k,
             ts,
             as_bytes(iter.key().for_testing_key_ref()),
@@ -154,7 +166,7 @@ where
         assert_eq!(
             v,
             iter.value(),
-            "expected value: {:?}, actual value: {:?}",
+            "预期值: {:?}, 实际值: {:?}",
             v,
             as_bytes(iter.value()),
         );
@@ -172,14 +184,14 @@ where
         assert_eq!(
             k,
             iter.key(),
-            "expected key: {:?}, actual key: {:?}",
+            "预期键: {:?}, 实际键: {:?}",
             k,
             as_bytes(iter.key()),
         );
         assert_eq!(
             v,
             iter.value(),
-            "expected value: {:?}, actual value: {:?}",
+            "预期值: {:?}, 实际值: {:?}",
             v,
             as_bytes(iter.value()),
         );
@@ -192,7 +204,7 @@ pub fn expect_iter_error(mut iter: impl StorageIterator) {
     loop {
         match iter.next() {
             Ok(_) if iter.is_valid() => continue,
-            Ok(_) => panic!("expect an error"),
+            Ok(_) => panic!("期望一个错误"),
             Err(_) => break,
         }
     }
@@ -243,7 +255,7 @@ pub fn compaction_bench(storage: Arc<MiniLsm>) {
     for iter in 0..10 {
         let range_begin = iter * 5000;
         for i in range_begin..(range_begin + overlaps) {
-            // 120B per key, 4MB data populated
+            // 每个键 120B，填充 4MB 数据
             let key: String = gen_key(i);
             let version = key_map.get(&i).copied().unwrap_or_default() + 1;
             let value = gen_value(version);
@@ -253,7 +265,7 @@ pub fn compaction_bench(storage: Arc<MiniLsm>) {
         }
     }
 
-    std::thread::sleep(Duration::from_secs(1)); // wait until all memtables flush
+    std::thread::sleep(Duration::from_secs(1)); // 等待所有 memtable 刷写
     while {
         let snapshot = storage.inner.state.read();
         !snapshot.imm_memtables.is_empty()
@@ -270,7 +282,7 @@ pub fn compaction_bench(storage: Arc<MiniLsm>) {
         prev_snapshot = snapshot;
         to_cont
     } {
-        println!("waiting for compaction to converge");
+        println!("等待压缩收敛");
     }
 
     let mut expected_key_value_pairs = Vec::new();
@@ -294,7 +306,7 @@ pub fn compaction_bench(storage: Arc<MiniLsm>) {
     storage.dump_structure();
 
     println!(
-        "This test case does not guarantee your compaction algorithm produces a LSM state as expected. It only does minimal checks on the size of the levels. Please use the compaction simulator to check if the compaction is correctly going on."
+        "此测试用例不保证您的压缩算法能产生预期的 LSM 状态。它仅对层级的大小进行最小检查。请使用压缩模拟器检查压缩是否正确进行。"
     );
 }
 
@@ -315,7 +327,7 @@ pub fn check_compaction_ratio(storage: Arc<MiniLsm>) {
         level_size.push(size);
     }
     let extra_iterators = if TS_ENABLED {
-        1 /* txn local iterator for OCC */
+        1 /* OCC 的 txn 本地迭代器 */
     } else {
         0
     };
@@ -351,7 +363,7 @@ pub fn check_compaction_ratio(storage: Arc<MiniLsm>) {
             }
             assert!(
                 num_iters <= l0_sst_num + num_memtables + max_levels + extra_iterators,
-                "we found {num_iters} iterators in your implementation, (l0_sst_num={l0_sst_num}, num_memtables={num_memtables}, max_levels={max_levels}) did you use concat iterators?"
+                "我们在您的实现中找到了 {num_iters} 个迭代器, (l0_sst_num={l0_sst_num}, num_memtables={num_memtables}, max_levels={max_levels}) 您是否使用了 concat 迭代器？"
             );
         }
         CompactionOptions::Leveled(LeveledCompactionOptions {
@@ -368,7 +380,7 @@ pub fn check_compaction_ratio(storage: Arc<MiniLsm>) {
                 multiplier *= level_size_multiplier as f64;
                 let this_size = level_size[idx - 1];
                 assert!(
-                    // do not add hard requirement on level size multiplier considering bloom filters...
+                    // 考虑到布隆过滤器，不要对层级大小乘数添加硬性要求...
                     this_size as f64 / last_level_size as f64 <= 1.0 / multiplier + 0.5,
                     "L{}/L_max, {}/{}>>1.0/{}",
                     state.levels[idx - 1].0,
@@ -379,7 +391,7 @@ pub fn check_compaction_ratio(storage: Arc<MiniLsm>) {
             }
             assert!(
                 num_iters <= l0_sst_num + num_memtables + max_levels + extra_iterators,
-                "we found {num_iters} iterators in your implementation, (l0_sst_num={l0_sst_num}, num_memtables={num_memtables}, max_levels={max_levels}) did you use concat iterators?"
+                "我们在您的实现中找到了 {num_iters} 个迭代器, (l0_sst_num={l0_sst_num}, num_memtables={num_memtables}, max_levels={max_levels}) 您是否使用了 concat 迭代器？"
             );
         }
         CompactionOptions::Tiered(TieredCompactionOptions {
@@ -398,7 +410,7 @@ pub fn check_compaction_ratio(storage: Arc<MiniLsm>) {
                 if level_size.len() > min_merge_width {
                     assert!(
                         sum_size as f64 / this_size as f64 <= size_ratio_trigger,
-                        "violation of size ratio: sum(⬆️L{})/L{}, {}/{}>{}",
+                        "违反大小比率: sum(⬆️L{})/L{}, {}/{}>{}",
                         state.levels[idx - 1].0,
                         state.levels[idx].0,
                         sum_size,
@@ -410,7 +422,7 @@ pub fn check_compaction_ratio(storage: Arc<MiniLsm>) {
                     assert!(
                         sum_size as f64 / this_size as f64
                             <= max_size_amplification_percent as f64 / 100.0,
-                        "violation of space amp: sum(⬆️L{})/L{}, {}/{}>{}%",
+                        "违反空间放大率: sum(⬆️L{})/L{}, {}/{}>{}%",
                         state.levels[idx - 1].0,
                         state.levels[idx].0,
                         sum_size,
@@ -422,19 +434,19 @@ pub fn check_compaction_ratio(storage: Arc<MiniLsm>) {
             }
             assert!(
                 num_iters <= num_memtables + num_tiers + extra_iterators,
-                "we found {num_iters} iterators in your implementation, (num_memtables={num_memtables}, num_tiers={num_tiers}) did you use concat iterators?"
+                "我们在您的实现中找到了 {num_iters} 个迭代器, (num_memtables={num_memtables}, num_tiers={num_tiers}) 您是否使用了 concat 迭代器？"
             );
         }
     }
 }
 
 pub fn dump_files_in_dir(path: impl AsRef<Path>) {
-    println!("--- DIR DUMP ---");
+    println!("--- 目录转储 ---");
     for f in path.as_ref().read_dir().unwrap() {
         let f = f.unwrap();
         print!("{}", f.path().display());
         println!(
-            ", size={:.3}KB",
+            ", 大小={:.3}KB",
             f.metadata().unwrap().size() as f64 / 1024.0
         );
     }

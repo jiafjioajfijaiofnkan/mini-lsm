@@ -1,19 +1,17 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
-#![allow(unused_variables)] // TODO(you): remove this lint after implementing this mod
-#![allow(dead_code)] // TODO(you): remove this lint after implementing this mod
+#![allow(unused_variables)] // TODO(you): 实现此模块后移除此 lint
+#![allow(dead_code)] // TODO(you): 实现此模块后移除此 lint
 
 use std::collections::HashMap;
 use std::ops::Bound;
@@ -38,19 +36,18 @@ use crate::table::SsTable;
 
 pub type BlockCache = moka::sync::Cache<(usize, usize), Arc<Block>>;
 
-/// Represents the state of the storage engine.
+/// 表示存储引擎的状态。
 #[derive(Clone)]
 pub struct LsmStorageState {
-    /// The current memtable.
+    /// 当前的 memtable。
     pub memtable: Arc<MemTable>,
-    /// Immutable memtables, from latest to earliest.
+    /// 不可变的 memtable，从最新到最早。
     pub imm_memtables: Vec<Arc<MemTable>>,
-    /// L0 SSTs, from latest to earliest.
+    /// L0 SST，从最新到最早。
     pub l0_sstables: Vec<usize>,
-    /// SsTables sorted by key range; L1 - L_max for leveled compaction, or tiers for tiered
-    /// compaction.
+    /// 按键范围排序的 SSTable；用于分层压缩的 L1 - L_max，或用于分层压缩的层。
     pub levels: Vec<(usize, Vec<usize>)>,
-    /// SST objects.
+    /// SST 对象。
     pub sstables: HashMap<usize, Arc<SsTable>>,
 }
 
@@ -82,11 +79,11 @@ impl LsmStorageState {
 
 #[derive(Debug, Clone)]
 pub struct LsmStorageOptions {
-    // Block size in bytes
+    // 块大小（字节）
     pub block_size: usize,
-    // SST size in bytes, also the approximate memtable capacity limit
+    // SST 大小（字节），也是近似的 memtable 容量限制
     pub target_sst_size: usize,
-    // Maximum number of memtables in memory, flush to L0 when exceeding this limit
+    // 内存中 memtable 的最大数量，超过此限制则刷写到 L0
     pub num_memtable_limit: usize,
     pub compaction_options: CompactionOptions,
     pub enable_wal: bool,
@@ -133,7 +130,7 @@ pub enum CompactionFilter {
     Prefix(Bytes),
 }
 
-/// The storage interface of the LSM tree.
+/// LSM 树的存储接口。
 pub(crate) struct LsmStorageInner {
     pub(crate) state: Arc<RwLock<Arc<LsmStorageState>>>,
     pub(crate) state_lock: Mutex<()>,
@@ -147,16 +144,16 @@ pub(crate) struct LsmStorageInner {
     pub(crate) compaction_filters: Arc<Mutex<Vec<CompactionFilter>>>,
 }
 
-/// A thin wrapper for `LsmStorageInner` and the user interface for MiniLSM.
+/// `LsmStorageInner` 的简单包装器，以及 MiniLSM 的用户界面。
 pub struct MiniLsm {
     pub(crate) inner: Arc<LsmStorageInner>,
-    /// Notifies the L0 flush thread to stop working. (In week 1 day 6)
+    /// 通知 L0 刷写线程停止工作。（第 1 周第 6 天）
     flush_notifier: crossbeam_channel::Sender<()>,
-    /// The handle for the flush thread. (In week 1 day 6)
+    /// 刷写线程的句柄。（第 1 周第 6 天）
     flush_thread: Mutex<Option<std::thread::JoinHandle<()>>>,
-    /// Notifies the compaction thread to stop working. (In week 2)
+    /// 通知压缩线程停止工作。（第 2 周）
     compaction_notifier: crossbeam_channel::Sender<()>,
-    /// The handle for the compaction thread. (In week 2)
+    /// 压缩线程的句柄。（第 2 周）
     compaction_thread: Mutex<Option<std::thread::JoinHandle<()>>>,
 }
 
@@ -169,11 +166,10 @@ impl Drop for MiniLsm {
 
 impl MiniLsm {
     pub fn close(&self) -> Result<()> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
-    /// Start the storage engine by either loading an existing directory or creating a new one if the directory does
-    /// not exist.
+    /// 通过加载现有目录或在目录不存在时创建一个新目录来启动存储引擎。
     pub fn open(path: impl AsRef<Path>, options: LsmStorageOptions) -> Result<Arc<Self>> {
         let inner = Arc::new(LsmStorageInner::open(path, options)?);
         let (tx1, rx) = crossbeam_channel::unbounded();
@@ -225,7 +221,7 @@ impl MiniLsm {
         self.inner.scan(lower, upper)
     }
 
-    /// Only call this in test cases due to race conditions
+    /// 仅在测试用例中调用此函数，因为存在竞争条件
     pub fn force_flush(&self) -> Result<()> {
         if !self.inner.state.read().memtable.is_empty() {
             self.inner
@@ -252,8 +248,7 @@ impl LsmStorageInner {
         self.mvcc.as_ref().unwrap()
     }
 
-    /// Start the storage engine by either loading an existing directory or creating a new one if the directory does
-    /// not exist.
+    /// 通过加载现有目录或在目录不存在时创建一个新目录来启动存储引擎。
     pub(crate) fn open(path: impl AsRef<Path>, options: LsmStorageOptions) -> Result<Self> {
         let path = path.as_ref();
         let state = LsmStorageState::create(&options);
@@ -288,7 +283,7 @@ impl LsmStorageInner {
     }
 
     pub fn sync(&self) -> Result<()> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     pub fn add_compaction_filter(&self, compaction_filter: CompactionFilter) {
@@ -296,24 +291,24 @@ impl LsmStorageInner {
         compaction_filters.push(compaction_filter);
     }
 
-    /// Get a key from the storage. In day 7, this can be further optimized by using a bloom filter.
+    /// 从存储中获取一个键。在第 7 天，可以通过使用布隆过滤器进一步优化。
     pub fn get(&self, _key: &[u8]) -> Result<Option<Bytes>> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
-    /// Write a batch of data into the storage. Implement in week 2 day 7.
+    /// 将一批数据写入存储。在第 2 周第 7 天实现。
     pub fn write_batch<T: AsRef<[u8]>>(&self, _batch: &[WriteBatchRecord<T>]) -> Result<()> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
-    /// Put a key-value pair into the storage by writing into the current memtable.
+    /// 通过写入当前 memtable 将键值对放入存储中。
     pub fn put(&self, _key: &[u8], _value: &[u8]) -> Result<()> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
-    /// Remove a key from the storage by writing an empty value.
+    /// 通过写入空值从存储中删除一个键。
     pub fn delete(&self, _key: &[u8]) -> Result<()> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     pub(crate) fn path_of_sst_static(path: impl AsRef<Path>, id: usize) -> PathBuf {
@@ -333,30 +328,30 @@ impl LsmStorageInner {
     }
 
     pub(super) fn sync_dir(&self) -> Result<()> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
-    /// Force freeze the current memtable to an immutable memtable
+    /// 强制将当前 memtable 冻结为不可变 memtable
     pub fn force_freeze_memtable(&self, _state_lock_observer: &MutexGuard<'_, ()>) -> Result<()> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
-    /// Force flush the earliest-created immutable memtable to disk
+    /// 强制将最早创建的不可变 memtable 刷写到磁盘
     pub fn force_flush_next_imm_memtable(&self) -> Result<()> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     pub fn new_txn(&self) -> Result<()> {
-        // no-op
+        // 空操作
         Ok(())
     }
 
-    /// Create an iterator over a range of keys.
+    /// 创建一个覆盖键范围的迭代器。
     pub fn scan(
         &self,
         _lower: Bound<&[u8]>,
         _upper: Bound<&[u8]>,
     ) -> Result<FusedIterator<LsmIterator>> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 }

@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 use std::path::{Path, PathBuf};
 
@@ -29,25 +27,25 @@ struct CopyTestAction {
 
 #[derive(clap::Subcommand, Debug)]
 enum Action {
-    /// Check.
+    /// 检查。
     Check,
-    /// Build and serve book.
+    /// 构建并提供教程。
     Book,
-    /// Install necessary tools for development.
+    /// 安装开发所需的工具。
     InstallTools,
-    /// Show environment variables.
+    /// 显示环境变量。
     Show,
-    /// Run CI jobs
+    /// 运行 CI 作业
     Ci,
-    /// Sync starter repo and reference solution.
+    /// 同步入门仓库和参考解决方案。
     Sync,
-    /// Check starter code
+    /// 检查入门代码
     Scheck,
-    /// Copy test cases
+    /// 复制测试用例
     CopyTest(CopyTestAction),
 }
 
-/// Simple program to greet a person
+/// 用于问候某人的简单程序 (Simple program to greet a person)
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -59,7 +57,7 @@ fn switch_to_workspace_root() -> Result<()> {
     std::env::set_current_dir(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
-            .ok_or_else(|| anyhow!("failed to find the workspace root"))?,
+            .ok_or_else(|| anyhow!("未能找到工作区根目录"))?,
     )?;
     Ok(())
 }
@@ -68,7 +66,7 @@ fn switch_to_starter_root() -> Result<()> {
     std::env::set_current_dir(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
-            .ok_or_else(|| anyhow!("failed to find the workspace root"))?
+            .ok_or_else(|| anyhow!("未能找到工作区根目录"))?
             .join("mini-lsm-starter"),
     )?;
     Ok(())
@@ -169,16 +167,16 @@ fn copy_test_case(test: CopyTestAction) -> Result<()> {
         let fnamestr = fname
             .as_os_str()
             .to_str()
-            .ok_or_else(|| anyhow!("invalid filename?"))?;
+            .ok_or_else(|| anyhow!("无效的文件名？"))?;
         if let Some((mod_name, _)) = fnamestr.split_once(".rs") {
             test_file.push(mod_name.to_string());
         }
     }
     let mut tests_mod = String::new();
-    writeln!(tests_mod, "//! DO NOT MODIFY -- Mini-LSM tests modules")?;
+    writeln!(tests_mod, "//! 不要修改 —— Mini-LSM 测试模块")?;
     writeln!(
         tests_mod,
-        "//! This file will be automatically rewritten by the copy-test command."
+        "//! 此文件将由 copy-test 命令自动重写。"
     )?;
     writeln!(tests_mod)?;
     for tf in test_file {

@@ -2,78 +2,55 @@
   mini-lsm-book © 2022-2025 by Alex Chi Z is licensed under CC BY-NC-SA 4.0
 -->
 
-# Mem Table and Merge Iterators
+# MemTable (内存表) 和合并迭代器 (Merge Iterators)
 
 <div class="warning">
 
-This is a legacy version of the Mini-LSM course and we will not maintain it anymore. We now have a better version of this course and this chapter is now part of [Mini-LSM Week 1 Day 1: Memtable](./week1-01-memtable.md) and [Mini-LSM Week 1 Day 2: Merge Iterator](./week1-02-merge-iterator.md)
+这是 Mini-LSM 课程的旧版本，我们将不再维护它。我们现在有了这个课程的更好版本，本章内容现在是 [Mini-LSM 第 1 周第 1 天：Memtable](./week1-01-memtable.md) 和 [Mini-LSM 第 1 周第 2 天：合并迭代器](./week1-02-merge-iterator.md) 的一部分。
 
 </div>
 
 <!-- toc -->
 
-In this part, you will need to modify:
+在这一部分，您需要修改：
 
 * `src/iterators/merge_iterator.rs`
 * `src/iterators/two_merge_iterator.rs`
 * `src/mem_table.rs`
 
-You can use `cargo x copy-test day3` to copy our provided test cases to the starter code directory. After you have
-finished this part, use `cargo x scheck` to check the style and run all test cases. If you want to write your own
-test cases, write a new module `#[cfg(test)] mod user_tests { /* your test cases */ }` in `table.rs`. Remember to remove
-`#![allow(...)]` at the top of the modules you modified so that cargo clippy can actually check the styles.
+您可以使用 `cargo x copy-test day3` 将我们提供的测试用例复制到入门代码目录。完成此部分后，使用 `cargo x scheck` 检查样式并运行所有测试用例。如果您想编写自己的测试用例，请在 `table.rs` 中编写一个新的模块 `#[cfg(test)] mod user_tests { /* 您的测试用例 */ }`。请记住移除您修改的模块顶部的 `#![allow(...)]`，以便 cargo clippy 能够实际检查样式。
 
-This is the last part for the basic building blocks of an LSM tree. After implementing the merge iterators, we can
-easily merge data from different part of the data structure (mem table + SST) and get an iterator over all data. And
-in part 4, we will compose all these things together to make a real storage engine.
+这是 LSM 树基本构建块的最后一部分。实现合并迭代器后，我们可以轻松地合并来自数据结构不同部分（memtable + SST）的数据，并获得一个遍历所有数据的迭代器。在第 4 部分中，我们将把所有这些组合起来，构建一个真正的存储引擎。
 
-## Task 1 - Mem Table
+## 任务 1 - MemTable (内存表)
 
-In this course, we use [crossbeam-skiplist](https://docs.rs/crossbeam-skiplist) as the implementation of memtable.
-Skiplist is like linked-list, where data is stored in a list node and will not be moved in memory. Instead of using
-a single pointer for the next element, the nodes in skiplists contain multiple pointers and allow user to "skip some
-elements", so that we can achieve `O(log n)` search, insertion, and deletion.
+在本课程中，我们使用 [crossbeam-skiplist](https://docs.rs/crossbeam-skiplist) 作为 memtable 的实现。Skiplist (跳表) 类似于链表，数据存储在列表节点中，并且不会在内存中移动。与使用单个指针指向下一个元素不同，skiplist 中的节点包含多个指针，允许用户“跳过某些元素”，从而实现 `O(log n)` 的搜索、插入和删除。
 
-In storage engine, users will create iterators over the data structure. Generally, once user modifies the data structure,
-the iterator will become invalid (which is the case for C++ STL and Rust containers). However, skiplists allow us to
-access and modify the data structure at the same time, therefore potentially improving the performance when there is
-concurrent access. There are some papers argue that skiplists are bad, but the good property that data stays in its
-place in memory can make the implementation easier for us.
+在存储引擎中，用户将创建数据结构的迭代器。通常，一旦用户修改了数据结构，迭代器就会失效（C++ STL 和 Rust 容器就是这种情况）。然而，skiplist 允许我们同时访问和修改数据结构，因此在并发访问时可能会提高性能。有一些论文认为 skiplist 不好，但是数据在内存中保持原位的良好特性可以使我们的实现更容易。
 
-In `mem_table.rs`, you will need to implement a mem-table based on crossbeam-skiplist. Note that the memtable only
-supports `get`, `scan`, and `put` without `delete`. The deletion is represented as a tombstone `key -> empty value`,
-and the actual data will be deleted during the compaction process (day 5). Note that all `get`, `scan`, `put` functions
-only need `&self`, which means that we can concurrently call these operations.
+在 `mem_table.rs` 中，您需要实现一个基于 crossbeam-skiplist 的 memtable。请注意，memtable 仅支持 `get`、`scan` 和 `put`，不支持 `delete`。删除操作表示为一个墓碑 (tombstone) `key -> empty value`，实际数据将在压缩过程（第 5 天）中删除。请注意，所有 `get`、`scan`、`put` 函数都只需要 `&self`，这意味着我们可以并发调用这些操作。
 
-## Task 2 - Mem Table Iterator
+## 任务 2 - MemTable 迭代器 (MemTable Iterator)
 
-You can now implement an iterator `MemTableIterator` for `MemTable`. `memtable.iter(start, end)` will create an iterator
-that returns all elements within the range `start, end`. Here, start is `std::ops::Bound`, which contains 3 variants:
-`Unbounded`, `Included(key)`, `Excluded(key)`. The expresiveness of `std::ops::Bound` eliminates the need to memorizing
-whether an API has a closed range or open range.
+现在您可以为 `MemTable` 实现一个迭代器 `MemTableIterator`。`memtable.iter(start, end)` 将创建一个迭代器，返回 `start` 和 `end` 范围内的所有元素。这里，start 是 `std::ops::Bound`，它包含 3 个变体：`Unbounded`、`Included(key)`、`Excluded(key)`。`std::ops::Bound` 的表达能力消除了记住 API 是闭区间还是开区间的需要。
 
-Note that `crossbeam-skiplist`'s iterator has the same lifetime as the skiplist itself, which means that we will always
-need to provide a lifetime when using the iterator. This is very hard to use. You can use the `ouroboros` crate to
-create a self-referential struct that erases the lifetime. You will find the [ouroboros examples][ouroboros-example]
-helpful.
+请注意，`crossbeam-skiplist` 的迭代器具有与 skiplist 本身相同的生命周期，这意味着在使用迭代器时我们总是需要提供一个生命周期。这很难使用。您可以使用 `ouroboros` crate 创建一个自引用结构来消除生命周期。您会发现 [ouroboros 示例][ouroboros-example] 很有帮助。
 
 [ouroboros-example]: https://github.com/joshua-maros/ouroboros/blob/main/examples/src/ok_tests.rs
 
 ```rust
 pub struct MemTableIterator {
-    /// hold the reference to the skiplist so that the iterator will be valid.
+    /// 持有对 skiplist 的引用，以确保迭代器有效。
     map: Arc<SkipList>
-    /// then the lifetime of the iterator should be the same as the `MemTableIterator` struct itself
+    /// 然后迭代器的生命周期应与 `MemTableIterator` 结构本身的生命周期相同
     iter: SkipList::Iter<'this>
 }
 ```
 
-You will also need to convert the Rust-style iterator API to our storage iterator. In Rust, we use `next() -> Data`. But
-in this course, `next` doesn't have a return value, and the data should be fetched by `key()` and `value()`. You will
-need to think a way to implement this.
+您还需要将 Rust 风格的迭代器 API 转换为我们的存储迭代器。在 Rust 中，我们使用 `next() -> Data`。但在本课程中，`next` 没有返回值，数据应通过 `key()` 和 `value()` 获取。您需要考虑一种实现方法。
 
 <details>
-<summary>Spoiler: the MemTableIterator struct</summary>
+<summary>剧透：MemTableIterator 结构</summary>
 
 ```rust
 #[self_referencing]
@@ -86,26 +63,17 @@ pub struct MemTableIterator {
 }
 ```
 
-We have `map` serving as a reference to the skipmap, `iter` as a self-referential item of the struct, and `item` as the
-last item from the iterator. You might have thought of using something like `iter::Peekable`, but it requires `&mut self`
-when retrieving the key and value. Therefore, one approach is to (1) get the element from the iterator on initializing
-the `MemTableIterator`, store it in `item` (2) when calling `next`, we get the element from inner iter's `next` and move
-the inner iter to the next position.
+我们有 `map` 作为对 skiplist 的引用，`iter` 作为结构的自引用项，`item` 作为迭代器的最后一个项。您可能想过使用类似 `iter::Peekable` 的东西，但它在检索键和值时需要 `&mut self`。因此，一种方法是 (1) 在初始化 `MemTableIterator` 时从迭代器获取元素，并将其存储在 `item` 中 (2) 调用 `next` 时，我们从内部迭代器的 `next` 获取元素，并将内部迭代器移动到下一个位置。
 
 </details>
 
-In this design, you might have noticed that as long as we have the iterator object, the mem-table cannot be freed from
-the memory. In this course, we assume user operations are short, so that this will not cause big problems. See extra
-task for possible improvements.
+在这个设计中，您可能已经注意到，只要我们拥有迭代器对象，memtable 就无法从内存中释放。在本课程中，我们假设用户操作是短暂的，因此这不会导致大问题。有关可能的改进，请参阅额外任务。
 
-You can also consider using [AgateDB's skiplist](https://github.com/tikv/agatedb/tree/master/skiplist) implementation,
-which avoids the problem of creating a self-referential struct.
+您也可以考虑使用 [AgateDB 的 skiplist](https://github.com/tikv/agatedb/tree/master/skiplist) 实现，它避免了创建自引用结构的问题。
 
-## Task 3 - Merge Iterator
+## 任务 3 - 合并迭代器 (Merge Iterator)
 
-Now that you have a lot of mem-tables and SSTs, you might want to merge them to get the latest occurrence of a key.
-In `merge_iterator.rs`, we have `MergeIterator`, which is an iterator that merges all iterators *of the same type*.
-The iterator at the lower index position of the `new` function has higher priority, that is to say, if we have:
+既然您有很多 memtable 和 SST，您可能希望合并它们以获取键的最新出现。在 `merge_iterator.rs` 中，我们有 `MergeIterator`，它是一个合并所有*相同类型*迭代器的迭代器。在 `new` 函数中索引位置较低的迭代器具有更高的优先级，也就是说，如果我们有：
 
 ```
 iter1: 1->a, 2->b, 3->c
@@ -113,47 +81,32 @@ iter2: 1->d
 iter: MergeIterator::create(vec![iter1, iter2])
 ```
 
-The final iterator will produce `1->a, 2->b, 3->c`. The data in iter1 will overwrite the data in other iterators.
+最终的迭代器将产生 `1->a, 2->b, 3->c`。iter1 中的数据将覆盖其他迭代器中的数据。
 
-You can use a `BinaryHeap` to implement this merge iterator. Note that you should never put any invalid iterator inside
-the binary heap. One common pitfall is on error handling. For example,
+您可以使用 `BinaryHeap` (二叉堆) 来实现此合并迭代器。请注意，您永远不应将任何无效的迭代器放入二叉堆中。一个常见的陷阱是错误处理。例如，
 
 ```rust
 let Some(mut inner_iter) = self.iters.peek_mut() {
-    inner_iter.next()?; // <- will cause problem
+    inner_iter.next()?; // <- 会导致问题
 }
 ```
 
-If `next` returns an error (i.e., due to disk failure, network failure, checksum error, etc.), it is no longer valid.
-However, when we go out of the if condition and return the error to the caller, `PeekMut`'s drop will try move the
-element within the heap, which causes an access to an invalid iterator. Therefore, you will need to do all error
-handling by yourself instead of using `?` within the scope of `PeekMut`.
+如果 `next` 返回错误（例如，由于磁盘故障、网络故障、校验和错误等），则它不再有效。然而，当我们跳出 if 条件并将错误返回给调用者时，`PeekMut` 的 drop 会尝试在堆中移动元素，这会导致访问无效的迭代器。因此，您需要自己处理所有错误，而不是在 `PeekMut` 的作用域内使用 `?`。
 
-You will also need to define a wrapper for the storage iterator so that `BinaryHeap` can compare across all iterators.
+您还需要为存储迭代器定义一个包装器，以便 `BinaryHeap` 可以在所有迭代器之间进行比较。
 
-## Task 4 - Two Merge Iterator
+## 任务 4 - 双路合并迭代器 (Two Merge Iterator)
 
-The LSM has two structures for storing data: the mem-tables in memory, and the SSTs on disk. After we constructed the
-iterator for all SSTs and all mem-tables respectively, we will need a new iterator to merge iterators of two different
-types. That is `TwoMergeIterator`.
+LSM 有两种存储数据的结构：内存中的 memtable 和磁盘上的 SST。在我们分别为所有 SST 和所有 memtable 构建了迭代器之后，我们将需要一个新的迭代器来合并两种不同类型的迭代器。这就是 `TwoMergeIterator`。
 
-You can implement `TwoMergeIterator` in `two_merge_iter.rs`. Similar to `MergeIterator`, if the same key is found in
-both of the iterator, the first iterator takes precedence.
+您可以在 `two_merge_iter.rs` 中实现 `TwoMergeIterator`。与 `MergeIterator` 类似，如果两个迭代器中都找到相同的键，则第一个迭代器优先。
 
-In this course, we explicitly did not use something like `Box<dyn StorageIter>` to avoid dynamic dispatch. This is a
-common optimization in LSM storage engines.
+在本课程中，我们明确没有使用类似 `Box<dyn StorageIter>` 的东西来避免动态分派 (dynamic dispatch)。这是 LSM 存储引擎中常见的优化。
 
-## Extra Tasks
+## 额外任务 (Extra Tasks)
 
-* Implement different mem-table and see how it differs from skiplist. i.e., BTree mem-table. You will notice that it is
-  hard to get an iterator over the B+ tree without holding a lock of the same timespan as the iterator. You might need
-  to think of smart ways of solving this.
-* Async iterator. One interesting thing to explore is to see if it is possible to asynchronize everything in the storage
-  engine. You might find some lifetime related problems and need to workaround them.
-* Foreground iterator. In this course we assumed that all operations are short, so that we can hold reference to
-  mem-table in the iterator. If an iterator is held by users for a long time, the whole mem-table (which might be 256MB)
-  will stay in the memory even if it has been flushed to disk. To solve this, we can provide a `ForegroundIterator` /
-  `LongIterator` to our user. The iterator will periodically create new underlying storage iterator so as to allow
-  garbage collection of the resources.
+* 实现不同的 memtable，看看它与 skiplist 有何不同。例如，BTree memtable。您会注意到，在不持有与迭代器相同时间跨度的锁的情况下，很难获得 B+ 树的迭代器。您可能需要考虑一些巧妙的方法来解决这个问题。
+* 异步迭代器 (Async iterator)。一个有趣的探索是看看是否有可能异步化存储引擎中的所有内容。您可能会遇到一些与生命周期相关的问题，并需要设法解决它们。
+* 前台迭代器 (Foreground iterator)。在本课程中，我们假设所有操作都是短暂的，因此我们可以在迭代器中持有对 memtable 的引用。如果用户长时间持有迭代器，整个 memtable（可能为 256MB）即使已刷写到磁盘，仍会保留在内存中。为了解决这个问题，我们可以向用户提供一个 `ForegroundIterator` / `LongIterator`。该迭代器将定期创建新的底层存储迭代器，以允许垃圾回收资源。
 
 {{#include copyright.md}}

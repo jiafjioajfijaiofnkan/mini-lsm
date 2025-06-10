@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 use std::sync::Arc;
 
@@ -79,7 +77,7 @@ fn test_task2_storage_integration() {
     assert_eq!(&storage.get(b"3").unwrap().unwrap()[..], b"23333");
     storage.delete(b"2").unwrap();
     assert!(storage.get(b"2").unwrap().is_none());
-    storage.delete(b"0").unwrap(); // should NOT report any error
+    storage.delete(b"0").unwrap(); // 不应报告任何错误
 }
 
 #[test]
@@ -106,7 +104,7 @@ fn test_task3_storage_integration() {
     assert_eq!(storage.state.read().imm_memtables.len(), 2);
     assert!(
         storage.state.read().imm_memtables[1].approximate_size() == previous_approximate_size,
-        "wrong order of memtables?"
+        "memtable 顺序错误？"
     );
     assert!(storage.state.read().imm_memtables[0].approximate_size() > previous_approximate_size);
 }
@@ -122,13 +120,13 @@ fn test_task3_freeze_on_capacity() {
         storage.put(b"1", b"2333").unwrap();
     }
     let num_imm_memtables = storage.state.read().imm_memtables.len();
-    assert!(num_imm_memtables >= 1, "no memtable frozen?");
+    assert!(num_imm_memtables >= 1, "没有 memtable 被冻结？");
     for _ in 0..1000 {
         storage.delete(b"1").unwrap();
     }
     assert!(
         storage.state.read().imm_memtables.len() > num_imm_memtables,
-        "no more memtable frozen?"
+        "没有更多 memtable 被冻结？"
     );
 }
 

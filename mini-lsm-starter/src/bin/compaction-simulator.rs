@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 mod wrapper;
 use wrapper::mini_lsm_wrapper;
@@ -33,15 +31,15 @@ use mini_lsm_wrapper::table::SsTable;
 #[command(author, version, about, long_about = None)]
 enum Args {
     Simple {
-        /// Dump the generated ID instead of where the original data comes from.
-        /// For example, if SST 1, 2, 3 is compacted to another level, it should have
-        /// a new SST ID 4, 5, 6 as SSTs are immutable and write-once. With this flag
-        /// enabled, you will see the new level has SST 1, 2, 3 because the data of
-        /// 4, 5, 6 are originated from 1, 2, 3.
+        /// 转储生成的 ID，而不是原始数据来源的 ID。
+        /// 例如，如果 SST 1、2、3 被压缩到另一个级别，它应该具有
+        /// 新的 SST ID 4、5、6，因为 SST 是不可变的且只能写入一次。启用此标志后，
+        /// 您将看到新的级别包含 SST 1、2、3，因为 4、5、6 的数据
+        /// 源自 1、2、3。
         #[clap(long)]
         dump_real_id: bool,
-        /// Only dump size information instead of the layer files. if this is enabled,
-        /// it will print one row per compaction iteration.
+        /// 仅转储大小信息，而不是层文件。如果启用此选项，
+        /// 每个压缩迭代将打印一行。
         #[clap(long)]
         size_only: bool,
         #[clap(long, default_value = "2")]
@@ -54,15 +52,15 @@ enum Args {
         iterations: usize,
     },
     Tiered {
-        /// Dump the generated ID instead of where the original data comes from.
-        /// For example, if SST 1, 2, 3 is compacted to another level, it should have
-        /// a new SST ID 4, 5, 6 as SSTs are immutable and write-once. With this flag
-        /// enabled, you will see the new level has SST 1, 2, 3 because the data of
-        /// 4, 5, 6 are originated from 1, 2, 3.
+        /// 转储生成的 ID，而不是原始数据来源的 ID。
+        /// 例如，如果 SST 1、2、3 被压缩到另一个级别，它应该具有
+        /// 新的 SST ID 4、5、6，因为 SST 是不可变的且只能写入一次。启用此标志后，
+        /// 您将看到新的级别包含 SST 1、2、3，因为 4、5、6 的数据
+        /// 源自 1、2、3。
         #[clap(long)]
         dump_real_id: bool,
-        /// Only dump size information instead of the layer files. if this is enabled,
-        /// it will print one row per compaction iteration.
+        /// 仅转储大小信息，而不是层文件。如果启用此选项，
+        /// 每个压缩迭代将打印一行。
         #[clap(long)]
         size_only: bool,
         #[clap(long, default_value = "8")]
@@ -79,15 +77,15 @@ enum Args {
         iterations: usize,
     },
     Leveled {
-        /// Dump the generated ID instead of where the original data comes from.
-        /// For example, if SST 1, 2, 3 is compacted to another level, it should have
-        /// a new SST ID 4, 5, 6 as SSTs are immutable and write-once. With this flag
-        /// enabled, you will see the new level has SST 1, 2, 3 because the data of
-        /// 4, 5, 6 are originated from 1, 2, 3.
+        /// 转储生成的 ID，而不是原始数据来源的 ID。
+        /// 例如，如果 SST 1、2、3 被压缩到另一个级别，它应该具有
+        /// 新的 SST ID 4、5、6，因为 SST 是不可变的且只能写入一次。启用此标志后，
+        /// 您将看到新的级别包含 SST 1、2、3，因为 4、5、6 的数据
+        /// 源自 1、2、3。
         #[clap(long)]
         dump_real_id: bool,
-        /// Only dump size information instead of the layer files. if this is enabled,
-        /// it will print one row per compaction iteration.
+        /// 仅转储大小信息，而不是层文件。如果启用此选项，
+        /// 每个压缩迭代将打印一行。
         #[clap(long)]
         size_only: bool,
         #[clap(long, default_value = "2")]
@@ -108,7 +106,7 @@ enum Args {
 pub struct MockStorage {
     snapshot: LsmStorageState,
     next_sst_id: usize,
-    /// Maps SST ID to the original flushed SST ID
+    /// 将 SST ID 映射到原始刷写的 SST ID
     file_list: HashMap<usize, usize>,
     total_flushes: usize,
     total_writes: usize,
@@ -164,7 +162,7 @@ impl MockStorage {
     pub fn remove(&mut self, files_to_remove: &[usize]) {
         for file_id in files_to_remove {
             let ret = self.file_list.remove(file_id);
-            assert!(ret.is_some(), "failed to remove file {}", file_id);
+            assert!(ret.is_some(), "无法移除文件 {}", file_id);
         }
     }
 
@@ -176,7 +174,7 @@ impl MockStorage {
                     let next_file = self.snapshot.sstables[&files[id + 1]].clone();
                     if this_file.last_key() >= next_file.first_key() {
                         panic!(
-                            "invalid file arrangement in L{}: id={}, range={:x}..={:x}; id={}, range={:x}..={:x}",
+                            "L{} 中的文件排列无效：id={}, 范围={:x}..={:x}; id={}, 范围={:x}..={:x}",
                             level,
                             this_file.sst_id(),
                             this_file.first_key().for_testing_key_ref().get_u64(),
@@ -192,7 +190,7 @@ impl MockStorage {
     }
 
     pub fn dump_size_only(&self) {
-        print!("Levels: {}", self.snapshot.l0_sstables.len());
+        print!("层级 (Levels): {}", self.snapshot.l0_sstables.len());
         for (_, files) in &self.snapshot.levels {
             print!(" {}", files.len());
         }
@@ -261,7 +259,7 @@ fn generate_random_split(
     let len = end - begin + 1;
     let mut result = Vec::new();
     let split = split as u64;
-    assert!(len >= split, "well, this is unfortunate... run again!");
+    assert!(len >= split, "嗯，这很不幸……再运行一次！");
     for i in 0..split {
         let nb = begin + len * i / split;
         let ne = begin + len * (i + 1) / split - 1;
@@ -288,7 +286,7 @@ fn main() {
             level0_file_num_compaction_trigger,
             max_levels,
         } => {
-            // TODO(chi): use unified logic for all 3 compactions...
+            // TODO(chi): 对所有 3 种压缩使用统一的逻辑...
             let controller =
                 SimpleLeveledCompactionController::new(SimpleLeveledCompactionOptions {
                     size_ratio_percent,
@@ -301,9 +299,9 @@ fn main() {
             }
             let mut max_space = 0;
             for i in 0..iterations {
-                println!("=== Iteration {i} ===");
+                println!("=== 迭代 {} ===", i);
                 storage.flush_sst_to_l0();
-                println!("--- After Flush ---");
+                println!("--- 刷写后 ---");
                 if size_only {
                     storage.dump_size_only();
                 } else if dump_real_id {
@@ -314,7 +312,7 @@ fn main() {
                 let mut num_compactions = 0;
                 while let Some(task) = {
                     if !size_only {
-                        println!("--- Compaction Task ---");
+                        println!("--- 压缩任务 ---");
                     }
                     controller.generate_compaction_task(&storage.snapshot)
                 } {
@@ -330,12 +328,12 @@ fn main() {
                         storage.total_writes += 1;
                     }
                     print!(
-                        "Upper L{} {:?} ",
+                        "高层 L{} {:?} ",
                         task.upper_level.unwrap_or_default(),
                         task.upper_level_sst_ids
                     );
                     print!(
-                        "Lower L{} {:?} ",
+                        "低层 L{} {:?} ",
                         task.lower_level, task.lower_level_sst_ids
                     );
                     println!("-> {:?}", sst_ids);
@@ -344,7 +342,7 @@ fn main() {
                         controller.apply_compaction_result(&storage.snapshot, &task, &sst_ids);
                     storage.snapshot = snapshot;
                     storage.remove(&del);
-                    println!("--- After Compaction ---");
+                    println!("--- 压缩后 ---");
                     if size_only {
                         storage.dump_size_only();
                     } else if dump_real_id {
@@ -354,30 +352,30 @@ fn main() {
                     }
                     num_compactions += 1;
                     if num_compactions >= max_levels * 2 {
-                        panic!("compaction does not converge?");
+                        panic!("压缩不收敛？");
                     }
                 }
                 if num_compactions == 0 {
-                    println!("no compaction triggered");
+                    println!("未触发压缩");
                 } else {
-                    println!("{num_compactions} compaction triggered in this iteration");
+                    println!("本次迭代触发了 {} 次压缩", num_compactions);
                 }
                 max_space = max_space.max(storage.file_list.len());
-                println!("--- Statistics ---");
+                println!("--- 统计 ---");
                 println!(
-                    "Write Amplification: {}/{}={:.3}x",
+                    "写放大 (Write Amplification): {}/{}={:.3}x",
                     storage.total_writes,
                     storage.total_flushes,
                     storage.total_writes as f64 / storage.total_flushes as f64
                 );
                 println!(
-                    "Maximum Space Usage: {}/{}={:.3}x",
+                    "最大空间使用 (Maximum Space Usage): {}/{}={:.3}x",
                     max_space,
                     storage.total_flushes,
                     max_space as f64 / storage.total_flushes as f64
                 );
                 println!(
-                    "Read Amplification: {}x",
+                    "读放大 (Read Amplification): {}x",
                     storage.snapshot.l0_sstables.len()
                         + storage
                             .snapshot
@@ -409,9 +407,9 @@ fn main() {
             let mut storage = MockStorage::new();
             let mut max_space = 0;
             for i in 0..iterations {
-                println!("=== Iteration {i} ===");
+                println!("=== 迭代 {} ===", i);
                 storage.flush_sst_to_new_tier();
-                println!("--- After Flush ---");
+                println!("--- 刷写后 ---");
                 if size_only {
                     storage.dump_size_only();
                 } else if dump_real_id {
@@ -420,12 +418,12 @@ fn main() {
                     storage.dump_original_id(false, false);
                 }
                 if !size_only {
-                    println!("--- Compaction Task ---");
+                    println!("--- 压缩任务 ---");
                 }
                 let mut num_compactions = 0;
                 while let Some(task) = {
                     if !size_only {
-                        println!("--- Compaction Task ---");
+                        println!("--- 压缩任务 ---");
                     }
                     controller.generate_compaction_task(&storage.snapshot)
                 } {
@@ -445,7 +443,7 @@ fn main() {
                         controller.apply_compaction_result(&storage.snapshot, &task, &sst_ids);
                     storage.snapshot = snapshot;
                     storage.remove(&del);
-                    println!("--- After Compaction ---");
+                    println!("--- 压缩后 ---");
                     if size_only {
                         storage.dump_size_only();
                     } else if dump_real_id {
@@ -455,30 +453,30 @@ fn main() {
                     }
                     num_compactions += 1;
                     if num_compactions >= level0_file_num_compaction_trigger * 3 {
-                        panic!("compaction does not converge?");
+                        panic!("压缩不收敛？");
                     }
                 }
                 if num_compactions == 0 {
-                    println!("no compaction triggered");
+                    println!("未触发压缩");
                 } else {
-                    println!("{num_compactions} compaction triggered in this iteration");
+                    println!("本次迭代触发了 {} 次压缩", num_compactions);
                 }
                 max_space = max_space.max(storage.file_list.len());
-                println!("--- Statistics ---");
+                println!("--- 统计 ---");
                 println!(
-                    "Write Amplification: {}/{}={:.3}x",
+                    "写放大 (Write Amplification): {}/{}={:.3}x",
                     storage.total_writes,
                     storage.total_flushes,
                     storage.total_writes as f64 / storage.total_flushes as f64
                 );
                 println!(
-                    "Maximum Space Usage: {}/{}={:.3}x",
+                    "最大空间使用 (Maximum Space Usage): {}/{}={:.3}x",
                     max_space,
                     storage.total_flushes,
                     max_space as f64 / storage.total_flushes as f64
                 );
                 println!(
-                    "Read Amplification: {}x",
+                    "读放大 (Read Amplification): {}x",
                     storage.snapshot.l0_sstables.len()
                         + storage
                             .snapshot
@@ -513,7 +511,7 @@ fn main() {
             }
             let mut max_space = 0;
             for i in 0..iterations {
-                println!("=== Iteration {i} ===");
+                println!("=== 迭代 {} ===", i);
                 let id = storage.flush_sst_to_l0();
                 let (first_key, last_key) = generate_random_key_range();
                 storage.snapshot.sstables.insert(
@@ -525,7 +523,7 @@ fn main() {
                         last_key,
                     )),
                 );
-                println!("--- After Flush ---");
+                println!("--- 刷写后 ---");
                 if size_only {
                     storage.dump_size_only();
                 } else if dump_real_id {
@@ -536,7 +534,7 @@ fn main() {
                 let mut num_compactions = 0;
                 while let Some(task) = {
                     if !size_only {
-                        println!("--- Compaction Task ---");
+                        println!("--- 压缩任务 ---");
                     }
                     controller.generate_compaction_task(&storage.snapshot)
                 } {
@@ -576,7 +574,7 @@ fn main() {
                         );
                     }
                     print!(
-                        "Upper L{} [{}] ",
+                        "高层 L{} [{}] ",
                         task.upper_level.unwrap_or_default(),
                         task.upper_level_sst_ids
                             .iter()
@@ -596,7 +594,7 @@ fn main() {
                             .join(", ")
                     );
                     print!(
-                        "Lower L{} [{}] ",
+                        "低层 L{} [{}] ",
                         task.lower_level,
                         task.lower_level_sst_ids
                             .iter()
@@ -643,7 +641,7 @@ fn main() {
                     );
                     storage.snapshot = snapshot;
                     storage.remove(&del);
-                    println!("--- After Compaction ---");
+                    println!("--- 压缩后 ---");
                     if size_only {
                         storage.dump_size_only();
                     } else if dump_real_id {
@@ -653,30 +651,30 @@ fn main() {
                     }
                     num_compactions += 1;
                     if num_compactions >= level0_file_num_compaction_trigger * max_levels * 2 {
-                        panic!("compaction does not converge?");
+                        panic!("压缩不收敛？");
                     }
                 }
                 if num_compactions == 0 {
-                    println!("no compaction triggered");
+                    println!("未触发压缩");
                 } else {
-                    println!("{num_compactions} compaction triggered in this iteration");
+                    println!("本次迭代触发了 {} 次压缩", num_compactions);
                 }
                 max_space = max_space.max(storage.file_list.len());
-                println!("--- Statistics ---");
+                println!("--- 统计 ---");
                 println!(
-                    "Write Amplification: {}/{}={:.3}x",
+                    "写放大 (Write Amplification): {}/{}={:.3}x",
                     storage.total_writes,
                     storage.total_flushes,
                     storage.total_writes as f64 / storage.total_flushes as f64
                 );
                 println!(
-                    "Maximum Space Usage: {}/{}={:.3}x",
+                    "最大空间使用 (Maximum Space Usage): {}/{}={:.3}x",
                     max_space,
                     storage.total_flushes,
                     max_space as f64 / storage.total_flushes as f64
                 );
                 println!(
-                    "Read Amplification: {}x",
+                    "读放大 (Read Amplification): {}x",
                     storage.snapshot.l0_sstables.len()
                         + storage
                             .snapshot

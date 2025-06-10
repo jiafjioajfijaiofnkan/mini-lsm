@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 use std::ops::Bound;
 
@@ -24,7 +22,7 @@ use crate::iterators::two_merge_iterator::TwoMergeIterator;
 use crate::mem_table::MemTableIterator;
 use crate::table::SsTableIterator;
 
-/// Represents the internal type for an LSM iterator. This type will be changed across the course for multiple times.
+/// 表示 LSM 迭代器的内部类型。此类型将在课程中多次更改。
 type LsmIteratorInner = TwoMergeIterator<
     TwoMergeIterator<MergeIterator<MemTableIterator>, MergeIterator<SsTableIterator>>,
     MergeIterator<SstConcatIterator>,
@@ -95,9 +93,9 @@ impl StorageIterator for LsmIterator {
     }
 }
 
-/// A wrapper around existing iterator, will prevent users from calling `next` when the iterator is
-/// invalid. If an iterator is already invalid, `next` does not do anything. If `next` returns an error,
-/// `is_valid` should return false, and `next` should always return an error.
+/// 一个围绕现有迭代器的包装器，当迭代器无效时，将阻止用户调用 `next`。
+/// 如果迭代器已经无效，`next` 不执行任何操作。如果 `next` 返回错误，
+/// `is_valid` 应返回 false，并且 `next` 应始终返回错误。
 pub struct FusedIterator<I: StorageIterator> {
     iter: I,
     has_errored: bool,
@@ -124,22 +122,22 @@ impl<I: StorageIterator> StorageIterator for FusedIterator<I> {
 
     fn key(&self) -> Self::KeyType<'_> {
         if !self.is_valid() {
-            panic!("invalid access to the underlying iterator");
+            panic!("对底层迭代器的无效访问");
         }
         self.iter.key()
     }
 
     fn value(&self) -> &[u8] {
         if !self.is_valid() {
-            panic!("invalid access to the underlying iterator");
+            panic!("对底层迭代器的无效访问");
         }
         self.iter.value()
     }
 
     fn next(&mut self) -> Result<()> {
-        // only move when the iterator is valid and not errored
+        // 仅当迭代器有效且未出错时才移动
         if self.has_errored {
-            bail!("the iterator is tainted");
+            bail!("迭代器已损坏");
         }
         if self.iter.is_valid() {
             if let Err(e) = self.iter.next() {

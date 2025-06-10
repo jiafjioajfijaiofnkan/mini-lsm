@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 use std::collections::{BTreeSet, HashMap};
 use std::fs::File;
@@ -41,19 +39,18 @@ use crate::table::{FileObject, SsTable, SsTableBuilder, SsTableIterator};
 
 pub type BlockCache = moka::sync::Cache<(usize, usize), Arc<Block>>;
 
-/// Represents the state of the storage engine.
+/// 表示存储引擎的状态。
 #[derive(Clone)]
 pub struct LsmStorageState {
-    /// The current memtable.
+    /// 当前的 memtable。
     pub memtable: Arc<MemTable>,
-    /// Immutable memtables, from latest to earliest.
+    /// 不可变的 memtable，从最新到最早。
     pub imm_memtables: Vec<Arc<MemTable>>,
-    /// L0 SSTs, from latest to earliest.
+    /// L0 SST，从最新到最早。
     pub l0_sstables: Vec<usize>,
-    /// SsTables sorted by key range; L1 - L_max for leveled compaction, or tiers for tiered
-    /// compaction.
+    /// 按键范围排序的 SSTable；用于分层压缩的 L1 - L_max，或用于分层压缩的层。
     pub levels: Vec<(usize, Vec<usize>)>,
-    /// SST objects.
+    /// SST 对象。
     pub sstables: HashMap<usize, Arc<SsTable>>,
 }
 
@@ -85,11 +82,11 @@ impl LsmStorageState {
 
 #[derive(Debug, Clone)]
 pub struct LsmStorageOptions {
-    // Block size in bytes
+    // 块大小（字节）
     pub block_size: usize,
-    // SST size in bytes, also the approximate memtable capacity limit
+    // SST 大小（字节），也是近似的 memtable 容量限制
     pub target_sst_size: usize,
-    // Maximum number of memtables in memory, flush to L0 when exceeding this limit
+    // 内存中 memtable 的最大数量，超过此限制则刷写到 L0
     pub num_memtable_limit: usize,
     pub compaction_options: CompactionOptions,
     pub enable_wal: bool,
@@ -167,7 +164,7 @@ pub enum CompactionFilter {
     Prefix(Bytes),
 }
 
-/// The storage interface of the LSM tree.
+/// LSM 树的存储接口。
 pub(crate) struct LsmStorageInner {
     pub(crate) state: Arc<RwLock<Arc<LsmStorageState>>>,
     pub(crate) state_lock: Mutex<()>,
@@ -183,16 +180,16 @@ pub(crate) struct LsmStorageInner {
     pub(crate) compaction_filters: Arc<Mutex<Vec<CompactionFilter>>>,
 }
 
-/// A thin wrapper for `LsmStorageInner` and the user interface for MiniLSM.
+/// `LsmStorageInner` 的简单包装器，以及 MiniLSM 的用户界面。
 pub struct MiniLsm {
     pub(crate) inner: Arc<LsmStorageInner>,
-    /// Notifies the L0 flush thread to stop working. (In week 1 day 6)
+    /// 通知 L0 刷写线程停止工作。（第 1 周第 6 天）
     flush_notifier: crossbeam_channel::Sender<()>,
-    /// The handle for the flush thread. (In week 1 day 6)
+    /// 刷写线程的句柄。（第 1 周第 6 天）
     flush_thread: Mutex<Option<std::thread::JoinHandle<()>>>,
-    /// Notifies the compaction thread to stop working. (In week 2)
+    /// 通知压缩线程停止工作。（第 2 周）
     compaction_notifier: crossbeam_channel::Sender<()>,
-    /// The handle for the compaction thread. (In week 2)
+    /// 压缩线程的句柄。（第 2 周）
     compaction_thread: Mutex<Option<std::thread::JoinHandle<()>>>,
 }
 
@@ -213,13 +210,13 @@ impl MiniLsm {
         if let Some(compaction_thread) = compaction_thread.take() {
             compaction_thread
                 .join()
-                .map_err(|e| anyhow::anyhow!("{:?}", e))?;
+                .map_err(|e| anyhow::anyhow!("压缩线程 join 失败: {:?}", e))?;
         }
         let mut flush_thread = self.flush_thread.lock();
         if let Some(flush_thread) = flush_thread.take() {
             flush_thread
                 .join()
-                .map_err(|e| anyhow::anyhow!("{:?}", e))?;
+                .map_err(|e| anyhow::anyhow!("刷写线程 join 失败: {:?}", e))?;
         }
 
         if self.inner.options.enable_wal {
@@ -228,7 +225,7 @@ impl MiniLsm {
             return Ok(());
         }
 
-        // create memtable and skip updating manifest
+        // 创建 memtable 并跳过更新 manifest
         if !self.inner.state.read().memtable.is_empty() {
             self.inner
                 .freeze_memtable_with_memtable(Arc::new(MemTable::create(
@@ -247,8 +244,7 @@ impl MiniLsm {
         Ok(())
     }
 
-    /// Start the storage engine by either loading an existing directory or creating a new one if the directory does
-    /// not exist.
+    /// 通过加载现有目录或在目录不存在时创建一个新目录来启动存储引擎。
     pub fn open(path: impl AsRef<Path>, options: LsmStorageOptions) -> Result<Arc<Self>> {
         let inner = Arc::new(LsmStorageInner::open(path, options)?);
         let (tx1, rx) = crossbeam_channel::unbounded();
@@ -300,7 +296,7 @@ impl MiniLsm {
         self.inner.scan(lower, upper)
     }
 
-    /// Only call this in test cases due to race conditions
+    /// 仅在测试用例中调用此函数，因为存在竞争条件
     pub fn force_flush(&self) -> Result<()> {
         if !self.inner.state.read().memtable.is_empty() {
             self.inner
@@ -323,13 +319,12 @@ impl LsmStorageInner {
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
     }
 
-    /// Start the storage engine by either loading an existing directory or creating a new one if the directory does
-    /// not exist.
+    /// 通过加载现有目录或在目录不存在时创建一个新目录来启动存储引擎。
     pub(crate) fn open(path: impl AsRef<Path>, options: LsmStorageOptions) -> Result<Self> {
         let mut state = LsmStorageState::create(&options);
         let path = path.as_ref();
         let mut next_sst_id = 1;
-        let block_cache = Arc::new(BlockCache::new(1 << 20)); // 4GB block cache,
+        let block_cache = Arc::new(BlockCache::new(1 << 20)); // 4GB 块缓存
         let manifest;
 
         let compaction_controller = match &options.compaction_options {
@@ -346,7 +341,7 @@ impl LsmStorageInner {
         };
 
         if !path.exists() {
-            std::fs::create_dir_all(path).context("failed to create DB dir")?;
+            std::fs::create_dir_all(path).context("无法创建数据库目录")?;
         }
         let manifest_path = path.join("MANIFEST");
         if !manifest_path.exists() {
@@ -356,7 +351,7 @@ impl LsmStorageInner {
                     Self::path_of_wal_static(path, state.memtable.id()),
                 )?);
             }
-            manifest = Manifest::create(&manifest_path).context("failed to create manifest")?;
+            manifest = Manifest::create(&manifest_path).context("无法创建 manifest 文件")?;
             manifest.add_record_when_init(ManifestRecord::NewMemtable(state.memtable.id()))?;
         } else {
             let (m, records) = Manifest::recover(&manifest_path)?;
@@ -365,7 +360,7 @@ impl LsmStorageInner {
                 match record {
                     ManifestRecord::Flush(sst_id) => {
                         let res = memtables.remove(&sst_id);
-                        assert!(res, "memtable not exist?");
+                        assert!(res, "memtable 不存在？");
                         if compaction_controller.flush_to_l0() {
                             state.l0_sstables.insert(0, sst_id);
                         } else {
@@ -380,7 +375,7 @@ impl LsmStorageInner {
                     ManifestRecord::Compaction(task, output) => {
                         let (new_state, _) = compaction_controller
                             .apply_compaction_result(&state, &task, &output, true);
-                        // TODO: apply remove again
+                        // TODO: 再次应用移除
                         state = new_state;
                         next_sst_id =
                             next_sst_id.max(output.iter().max().copied().unwrap_or_default());
@@ -389,7 +384,7 @@ impl LsmStorageInner {
             }
 
             let mut sst_cnt = 0;
-            // recover SSTs
+            // 恢复 SST
             for table_id in state
                 .l0_sstables
                 .iter()
@@ -400,16 +395,16 @@ impl LsmStorageInner {
                     table_id,
                     Some(block_cache.clone()),
                     FileObject::open(&Self::path_of_sst_static(path, table_id))
-                        .with_context(|| format!("failed to open SST: {}", table_id))?,
+                        .with_context(|| format!("无法打开 SST：{}", table_id))?,
                 )?;
                 state.sstables.insert(table_id, Arc::new(sst));
                 sst_cnt += 1;
             }
-            println!("{} SSTs opened", sst_cnt);
+            println!("已打开 {} 个 SST", sst_cnt);
 
             next_sst_id += 1;
 
-            // Sort SSTs on each level (only for leveled compaction)
+            // 对每个层级中的 SST 进行排序（仅适用于分层压缩）
             if let CompactionController::Leveled(_) = &compaction_controller {
                 for (_id, ssts) in &mut state.levels {
                     ssts.sort_by(|x, y| {
@@ -423,7 +418,7 @@ impl LsmStorageInner {
                 }
             }
 
-            // recover memtables
+            // 恢复 memtable
             if options.enable_wal {
                 let mut wal_cnt = 0;
                 for id in memtables.iter() {
@@ -434,7 +429,7 @@ impl LsmStorageInner {
                         wal_cnt += 1;
                     }
                 }
-                println!("{} WALs recovered", wal_cnt);
+                println!("已恢复 {} 个 WAL", wal_cnt);
                 state.memtable = Arc::new(MemTable::create_with_wal(
                     next_sst_id,
                     Self::path_of_wal_static(path, next_sst_id),
@@ -473,27 +468,27 @@ impl LsmStorageInner {
         compaction_filters.push(compaction_filter);
     }
 
-    /// Get a key from the storage. In day 7, this can be further optimized by using a bloom filter.
+    /// 从存储中获取一个键。在第 7 天，可以通过使用布隆过滤器进一步优化。
     pub fn get(&self, key: &[u8]) -> Result<Option<Bytes>> {
         let snapshot = {
             let guard = self.state.read();
             Arc::clone(&guard)
-        }; // drop global lock here
+        }; // 此处释放全局锁
 
-        // Search on the current memtable.
+        // 在当前 memtable 上搜索。
         if let Some(value) = snapshot.memtable.get(key) {
             if value.is_empty() {
-                // found tomestone, return key not exists
+                // 找到墓碑，返回键不存在
                 return Ok(None);
             }
             return Ok(Some(value));
         }
 
-        // Search on immutable memtables.
+        // 在不可变 memtable 上搜索。
         for memtable in snapshot.imm_memtables.iter() {
             if let Some(value) = memtable.get(key) {
                 if value.is_empty() {
-                    // found tomestone, return key not exists
+                    // 找到墓碑，返回键不存在
                     return Ok(None);
                 }
                 return Ok(Some(value));
@@ -556,7 +551,7 @@ impl LsmStorageInner {
             match record {
                 WriteBatchRecord::Del(key) => {
                     let key = key.as_ref();
-                    assert!(!key.is_empty(), "key cannot be empty");
+                    assert!(!key.is_empty(), "键不能为空");
                     let size;
                     {
                         let guard = self.state.read();
@@ -568,8 +563,8 @@ impl LsmStorageInner {
                 WriteBatchRecord::Put(key, value) => {
                     let key = key.as_ref();
                     let value = value.as_ref();
-                    assert!(!key.is_empty(), "key cannot be empty");
-                    assert!(!value.is_empty(), "value cannot be empty");
+                    assert!(!key.is_empty(), "键不能为空");
+                    assert!(!value.is_empty(), "值不能为空");
                     let size;
                     {
                         let guard = self.state.read();
@@ -583,12 +578,12 @@ impl LsmStorageInner {
         Ok(())
     }
 
-    /// Put a key-value pair into the storage by writing into the current memtable.
+    /// 通过写入当前 memtable 将键值对放入存储中。
     pub fn put(&self, key: &[u8], value: &[u8]) -> Result<()> {
         self.write_batch(&[WriteBatchRecord::Put(key, value)])
     }
 
-    /// Remove a key from the storage by writing an empty value.
+    /// 通过写入空值从存储中删除一个键。
     pub fn delete(&self, key: &[u8]) -> Result<()> {
         self.write_batch(&[WriteBatchRecord::Del(key)])
     }
@@ -597,7 +592,7 @@ impl LsmStorageInner {
         if estimated_size >= self.options.target_sst_size {
             let state_lock = self.state_lock.lock();
             let guard = self.state.read();
-            // the memtable could have already been frozen, check again to ensure we really need to freeze
+            // memtable 可能已经被冻结，再次检查以确保我们真的需要冻结
             if guard.memtable.approximate_size() >= self.options.target_sst_size {
                 drop(guard);
                 self.force_freeze_memtable(&state_lock)?;
@@ -629,12 +624,12 @@ impl LsmStorageInner {
 
     fn freeze_memtable_with_memtable(&self, memtable: Arc<MemTable>) -> Result<()> {
         let mut guard = self.state.write();
-        // Swap the current memtable with a new one.
+        // 将当前 memtable 与新的 memtable 交换。
         let mut snapshot = guard.as_ref().clone();
         let old_memtable = std::mem::replace(&mut snapshot.memtable, memtable);
-        // Add the memtable to the immutable memtables.
+        // 将 memtable 添加到不可变 memtable 列表中。
         snapshot.imm_memtables.insert(0, old_memtable.clone());
-        // Update the snapshot.
+        // 更新快照。
         *guard = Arc::new(snapshot);
 
         drop(guard);
@@ -643,7 +638,7 @@ impl LsmStorageInner {
         Ok(())
     }
 
-    /// Force freeze the current memtable to an immutable memtable
+    /// 强制将当前 memtable 冻结为不可变 memtable
     pub fn force_freeze_memtable(&self, state_lock_observer: &MutexGuard<'_, ()>) -> Result<()> {
         let memtable_id = self.next_sst_id();
         let memtable = if self.options.enable_wal {
@@ -666,7 +661,7 @@ impl LsmStorageInner {
         Ok(())
     }
 
-    /// Force flush the earliest-created immutable memtable to disk
+    /// 强制将最早创建的不可变 memtable 刷写到磁盘
     pub fn force_flush_next_imm_memtable(&self) -> Result<()> {
         let state_lock = self.state_lock.lock();
 
@@ -677,7 +672,7 @@ impl LsmStorageInner {
             flush_memtable = guard
                 .imm_memtables
                 .last()
-                .expect("no imm memtables!")
+                .expect("没有不可变的 memtable！")
                 .clone();
         }
 
@@ -690,24 +685,24 @@ impl LsmStorageInner {
             self.path_of_sst(sst_id),
         )?);
 
-        // Add the flushed L0 table to the list.
+        // 将刷写的 L0 表添加到列表中。
         {
             let mut guard = self.state.write();
             let mut snapshot = guard.as_ref().clone();
-            // Remove the memtable from the immutable memtables.
+            // 从不可变 memtable 列表中移除 memtable。
             let mem = snapshot.imm_memtables.pop().unwrap();
             assert_eq!(mem.id(), sst_id);
-            // Add L0 table
+            // 添加 L0 表
             if self.compaction_controller.flush_to_l0() {
-                // In leveled compaction or no compaction, simply flush to L0
+                // 在分层压缩或无压缩中，简单地刷写到 L0
                 snapshot.l0_sstables.insert(0, sst_id);
             } else {
-                // In tiered compaction, create a new tier
+                // 在分层压缩中，创建一个新的层
                 snapshot.levels.insert(0, (sst_id, vec![sst_id]));
             }
-            println!("flushed {}.sst with size={}", sst_id, sst.table_size());
+            println!("已刷写 {}.sst，大小={}", sst_id, sst.table_size());
             snapshot.sstables.insert(sst_id, sst);
-            // Update the snapshot.
+            // 更新快照。
             *guard = Arc::new(snapshot);
         }
 
@@ -726,11 +721,11 @@ impl LsmStorageInner {
     }
 
     pub fn new_txn(&self) -> Result<()> {
-        // no-op
+        // 空操作
         Ok(())
     }
 
-    /// Create an iterator over a range of keys.
+    /// 创建一个覆盖键范围的迭代器。
     pub fn scan(
         &self,
         lower: Bound<&[u8]>,
@@ -739,7 +734,7 @@ impl LsmStorageInner {
         let snapshot = {
             let guard = self.state.read();
             Arc::clone(&guard)
-        }; // drop global lock here
+        }; // 此处释放全局锁
 
         let mut memtable_iters = Vec::with_capacity(snapshot.imm_memtables.len() + 1);
         memtable_iters.push(Box::new(snapshot.memtable.scan(lower, upper)));

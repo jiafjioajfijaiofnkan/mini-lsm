@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 use std::time::Duration;
 
@@ -56,11 +54,11 @@ fn test_integration_simple() {
     }));
 }
 
-/// Provision the storage such that base_level contains 2 SST files (target size is 2MB and each SST is 1MB).
-/// This configuration has the effect that compaction will generate a new lower-level containing more than 1 SST files,
-/// and leveled compaction should handle this situation correctly: These files might not be sorted by first-key and
-/// should NOT be sorted inside the `apply_compaction_result` function, because we don't have any actual SST loaded at the
-/// point where this function is called during manifest recovery.
+/// 配置存储，使 base_level 包含 2 个 SST 文件（目标大小为 2MB，每个 SST 为 1MB）。
+/// 此配置的效果是压缩将生成一个新的较低级别，其中包含多个 SST 文件，
+/// 分层压缩应正确处理这种情况：这些文件可能未按第一个键排序，
+/// 并且在 manifest 恢复期间调用此函数时，不应在 `apply_compaction_result` 函数内部对其进行排序，
+/// 因为此时我们没有加载任何实际的 SST。
 #[test]
 fn test_multiple_compacted_ssts_leveled() {
     let compaction_options = CompactionOptions::Leveled(LeveledCompactionOptions {
@@ -75,8 +73,8 @@ fn test_multiple_compacted_ssts_leveled() {
     let dir = tempdir().unwrap();
     let storage = MiniLsm::open(&dir, lsm_storage_options).unwrap();
 
-    // Insert approximately 10MB of data to ensure that at least one compaction is triggered by priority.
-    // Insert 500 key-value pairs where each pair is 2KB
+    // 插入大约 10MB 的数据，以确保至少有一次压缩是由优先级触发的。
+    // 插入 500 个键值对，其中每个键值对为 2KB
     for i in 0..500 {
         let (key, val) = key_value_pair_with_target_size(i, 20 * 1024);
         storage.put(&key, &val).unwrap();
@@ -91,7 +89,7 @@ fn test_multiple_compacted_ssts_leveled() {
         prev_snapshot = snapshot;
         to_cont
     } {
-        println!("waiting for compaction to converge");
+        println!("等待压缩收敛");
     }
 
     storage.close().unwrap();
@@ -139,7 +137,7 @@ fn test_integration(compaction_options: CompactionOptions) {
             .unwrap();
     }
     storage.close().unwrap();
-    // ensure all SSTs are flushed
+    // 确保所有 SST 都已刷写
     assert!(storage.inner.state.read().memtable.is_empty());
     assert!(storage.inner.state.read().imm_memtables.is_empty());
     storage.dump_structure();
@@ -156,7 +154,7 @@ fn test_integration(compaction_options: CompactionOptions) {
     assert_eq!(storage.get(b"2").unwrap(), None);
 }
 
-/// Create a key value pair where key and value are of target size in bytes
+/// 创建一个键和值都具有目标大小（字节）的键值对
 fn key_value_pair_with_target_size(seed: i32, target_size_byte: usize) -> (Vec<u8>, Vec<u8>) {
     let mut key = vec![0; target_size_byte - 4];
     key.put_i32(seed);

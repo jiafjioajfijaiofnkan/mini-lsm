@@ -1,3 +1,3 @@
-# mini-lsm-starter
+# mini-lsm-starter (Mini-LSM 入门代码)
 
-Starter code for Mini-LSM.
+Mini-LSM 的入门代码。

@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 use std::sync::Arc;
 
@@ -21,7 +19,7 @@ use crate::block::BlockIterator;
 use crate::iterators::StorageIterator;
 use crate::key::KeySlice;
 
-/// An iterator over the contents of an SSTable.
+/// SSTable 内容的迭代器。
 pub struct SsTableIterator {
     table: Arc<SsTable>,
     blk_iter: BlockIterator,
@@ -36,7 +34,7 @@ impl SsTableIterator {
         ))
     }
 
-    /// Create a new iterator and seek to the first key-value pair.
+    /// 创建一个新的迭代器并寻找到第一个键值对。
     pub fn create_and_seek_to_first(table: Arc<SsTable>) -> Result<Self> {
         let (blk_idx, blk_iter) = Self::seek_to_first_inner(&table)?;
         let iter = Self {
@@ -47,7 +45,7 @@ impl SsTableIterator {
         Ok(iter)
     }
 
-    /// Seek to the first key-value pair.
+    /// 寻找到第一个键值对。
     pub fn seek_to_first(&mut self) -> Result<()> {
         let (blk_idx, blk_iter) = Self::seek_to_first_inner(&self.table)?;
         self.blk_idx = blk_idx;
@@ -69,7 +67,7 @@ impl SsTableIterator {
         Ok((blk_idx, blk_iter))
     }
 
-    /// Create a new iterator and seek to the first key-value pair which >= `key`.
+    /// 创建一个新的迭代器并寻找到第一个大于等于 `key` 的键值对。
     pub fn create_and_seek_to_key(table: Arc<SsTable>, key: KeySlice) -> Result<Self> {
         let (blk_idx, blk_iter) = Self::seek_to_key_inner(&table, key)?;
         let iter = Self {
@@ -80,7 +78,7 @@ impl SsTableIterator {
         Ok(iter)
     }
 
-    /// Seek to the first key-value pair which >= `key`.
+    /// 寻找到第一个大于等于 `key` 的键值对。
     pub fn seek_to_key(&mut self, key: KeySlice) -> Result<()> {
         let (blk_idx, blk_iter) = Self::seek_to_key_inner(&self.table, key)?;
         self.blk_iter = blk_iter;

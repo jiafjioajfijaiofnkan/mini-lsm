@@ -2,45 +2,45 @@
   mini-lsm-book © 2022-2025 by Alex Chi Z is licensed under CC BY-NC-SA 4.0
 -->
 
-# Write-Ahead Log (WAL)
+# 预写日志 (Write-Ahead Log, WAL)
 
-![Chapter Overview](./lsm-tutorial/week2-06-overview.svg)
+![本章概览](./lsm-tutorial/week2-06-overview.svg)
 
-In this chapter, you will:
+在本章中，您将：
 
-* Implement encoding and decoding of the write-ahead log file.
-* Recover memtables from the WALs when the system restarts.
+* 实现预写日志文件的编码和解码。
+* 在系统重启时从 WAL 恢复内存表。
 
-To copy the test cases into the starter code and run them,
+要将测试用例复制到入门代码并运行它们：
 
 ```
 cargo x copy-test --week 2 --day 6
 cargo x scheck
 ```
 
-## Task 1: WAL Encoding
+## 任务 1：WAL 编码 (WAL Encoding)
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/wal.rs
 ```
 
-In the previous chapter, we have implemented the manifest file, so that the LSM state can be persisted. And we implemented the `close` function to flush all memtables to SSTs before stopping the engine. Now, what if the system crashes (i.e., powered off)? We can log memtable modifications to WAL (write-ahead log), and recover WALs when restarting the database. WAL is only enabled when `self.options.enable_wal = true`.
+在上一章中，我们已经实现了 manifest 文件，以便 LSM 状态可以持久化。并且我们实现了 `close` 函数，以便在停止引擎之前将所有内存表刷写到 SST。现在，如果系统崩溃（例如，断电）会发生什么？我们可以将内存表修改记录到 WAL（预写日志），并在数据库重启时恢复 WAL。WAL 仅在 `self.options.enable_wal = true` 时启用。
 
-The WAL encoding is simply a list of key-value pairs.
+WAL 编码只是一个键值对列表。
 
 ```
 | key_len | key | value_len | value |
 ```
 
-You will also need to implement the `recover` function to read the WAL and recover the state of a memtable.
+您还需要实现 `recover` 函数来读取 WAL 并恢复内存表的状态。
 
-Note that we are using a `BufWriter` for writing the WAL. Using a `BufWriter` can reduce the number of syscalls into the OS, so as to reduce the latency of the write path. The data is not guaranteed to be written to the disk when the user modifies a key. Instead, the engine only guarantee that the data is persisted when `sync` is called. To correctly persist the data to the disk, you will need to first flush the data from the buffer writer to the file object by calling `flush()`, and then do a fsync on the file by using `get_mut().sync_all()`. Note that you *only* need to fsync when the engine's `sync` gets called. You *do not* need to fsync every time on writing data.
+请注意，我们使用 `BufWriter` 来写入 WAL。使用 `BufWriter` 可以减少对操作系统的系统调用次数，从而降低写入路径的延迟。当用户修改键时，数据不保证立即写入磁盘。相反，引擎仅在调用 `sync` 时才保证数据已持久化。要正确地将数据持久化到磁盘，您需要首先通过调用 `flush()` 将数据从缓冲区写入器刷写到文件对象，然后通过使用 `get_mut().sync_all()` 对文件执行 fsync。请注意，您*仅*需要在引擎的 `sync` 被调用时执行 fsync。您*不*需要在每次写入数据时都执行 fsync。
 
-## Task 2: Integrate WALs
+## 任务 2：集成 WAL (Integrate WALs)
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/mem_table.rs
@@ -48,34 +48,34 @@ src/wal.rs
 src/lsm_storage.rs
 ```
 
-`MemTable` has a WAL field. If the `wal` field is set to `Some(wal)`, you will need to append to the WAL when updating the memtable. In your LSM engine, you will need to create WALs if `enable_wal = true`. You will also need update the manifest using the `ManifestRecord::NewMemtable` record when new memtable is created.
+`MemTable` 有一个 WAL 字段。如果 `wal` 字段设置为 `Some(wal)`，则在更新内存表时需要追加到 WAL。在您的 LSM 引擎中，如果 `enable_wal = true`，则需要创建 WAL。当创建新的内存表时，您还需要使用 `ManifestRecord::NewMemtable` 记录更新 manifest。
 
-You can create a memtable with WAL by using the `create_with_wal` function. WAL should be written to `<memtable_id>.wal` in the storage directory. The memtable id should be the same as the SST id if this memtable gets flushed as an L0 SST.
+您可以使用 `create_with_wal` 函数创建带有 WAL 的内存表。WAL 应写入存储目录中的 `<memtable_id>.wal`。如果此内存表作为 L0 SST 刷写，则内存表 ID 应与 SST ID 相同。
 
-## Task 3: Recover from the WALs
+## 任务 3：从 WAL 恢复 (Recover from the WALs)
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/lsm_storage.rs
 ```
 
-If WAL is enabled, you will need to recover the memtables based on WALs when loading the database. You will also need to implement the `sync` function of the database. The basic guarantee of `sync` is that the engine is sure that the data is persisted to the disk (and will be recovered when it restarts). To achieve this, you can simply sync the WAL corresponding to the current memtable.
+如果启用了 WAL，则在加载数据库时，您需要根据 WAL 恢复内存表。您还需要实现数据库的 `sync` 函数。`sync` 的基本保证是引擎确信数据已持久化到磁盘（并在重启时将恢复）。为实现此目的，您可以简单地同步与当前内存表对应的 WAL。
 
 ```
 cargo run --bin mini-lsm-cli -- --enable-wal
 ```
 
-Remember to recover the correct `next_sst_id` from the state, which should be `max{memtable id, sst id}` + 1. In your `close` function, you should not flush memtables to SSTs if `enable_wal` is set to true, as WAL itself provides persistency. You should wait until all compaction and flush threads to exit before closing the database.
+请记住从状态中恢复正确的 `next_sst_id`，它应该是 `max{memtable id, sst id}` + 1。在您的 `close` 函数中，如果设置了 `enable_wal` 为 true，则不应将内存表刷写到 SST，因为 WAL 本身提供了持久性。在关闭数据库之前，您应该等待所有压缩和刷写线程退出。
 
-## Test Your Understanding
+## 测试您的理解 (Test Your Understanding)
 
-* When should you call `fsync` in your engine? What happens if you call `fsync` too often (i.e., on every put key request)?
-* How costly is the `fsync` operation in general on an SSD (solid state drive)?
-* When can you tell the user that their modifications (put/delete) have been persisted?
-* How can you handle corrupted data in WAL?
-* Is it possible to design an LSM engine without WAL (i.e., use L0 as WAL)? What will be the implications of this design?
+* 您应该在引擎中的什么时候调用 `fsync`？如果您过于频繁地调用 `fsync`（例如，在每个 put key 请求时）会发生什么？
+* 通常情况下，在 SSD（固态硬盘）上 `fsync` 操作的成本有多高？
+* 您什么时候可以告诉用户他们的修改（put/delete）已持久化？
+* 您如何处理 WAL 中的损坏数据？
+* 是否可以设计一个没有 WAL 的 LSM 引擎（即，使用 L0 作为 WAL）？这种设计的含义是什么？
 
-We do not provide reference answers to the questions, and feel free to discuss about them in the Discord community.
+我们不提供这些问题的参考答案，欢迎在 Discord 社区中讨论它们。
 
 {{#include copyright.md}}

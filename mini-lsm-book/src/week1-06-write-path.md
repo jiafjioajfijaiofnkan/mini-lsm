@@ -2,49 +2,49 @@
   mini-lsm-book © 2022-2025 by Alex Chi Z is licensed under CC BY-NC-SA 4.0
 -->
 
-# Write Path
+# 写入路径 (Write Path)
 
-![Chapter Overview](./lsm-tutorial/week1-05-overview.svg)
+![本章概览](./lsm-tutorial/week1-05-overview.svg)
 
-In this chapter, you will:
+在本章中，您将：
 
-* Implement the LSM write path with L0 flush.
-* Implement the logic to correctly update the LSM state.
+* 实现带有 L0 刷写的 LSM 写入路径。
+* 实现正确更新 LSM 状态的逻辑。
 
 
-To copy the test cases into the starter code and run them,
+要将测试用例复制到入门代码并运行它们：
 
 ```
 cargo x copy-test --week 1 --day 6
 cargo x scheck
 ```
 
-## Task 1: Flush Memtable to SST
+## 任务 1：将 Memtable 刷写到 SST (Flush Memtable to SST)
 
-At this point, we have all in-memory things and on-disk files ready, and the storage engine is able to read and merge the data from all these structures. Now, we are going to implement the logic to move things from memory to the disk (so-called flush), and complete the Mini-LSM week 1 course.
+至此，我们已经准备好了所有内存结构和磁盘文件，存储引擎能够读取和合并来自所有这些结构的数据。现在，我们将实现将数据从内存移动到磁盘的逻辑（称为刷写, flush），并完成 Mini-LSM 第 1 周的课程。
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/lsm_storage.rs
 src/mem_table.rs
 ```
 
-You will need to modify `LSMStorageInner::force_flush_next_imm_memtable` and `MemTable::flush`. In `LSMStorageInner::open`, you will need to create the LSM database directory if it does not exist. To flush a memtable to the disk, we will need to do three things:
+您需要修改 `LSMStorageInner::force_flush_next_imm_memtable` 和 `MemTable::flush`。在 `LSMStorageInner::open` 中，如果 LSM 数据库目录不存在，您需要创建它。要将内存表刷写到磁盘，我们需要做三件事：
 
-* Select a memtable to flush.
-* Create an SST file corresponding to a memtable.
-* Remove the memtable from the immutable memtable list and add the SST file to L0 SSTs.
+* 选择一个要刷写的内存表。
+* 创建一个与内存表对应的 SST 文件。
+* 从不可变内存表列表中移除该内存表，并将 SST 文件添加到 L0 SST 中。
 
-We have not explained what is L0 (level-0) SSTs for now. In general, they are the set of SSTs files directly created as a result of memtable flush. In week 1 of this course, we will only have L0 SSTs on the disk. We will dive into how to organize them efficiently using leveled or tiered structure on the disk in week 2.
+我们目前还没有解释什么是 L0（0 级）SST。通常，它们是直接由内存表刷写产生的 SST 文件集合。在本课程的第 1 周，磁盘上只会有 L0 SST。我们将在第 2 周深入探讨如何使用磁盘上的分层或分级结构有效地组织它们。
 
-Note that creating an SST file is a compute-heavy and a costly operation. Again, we do not want to hold the `state` read/write lock for a long time, as it might block other operations and create huge latency spikes in the LSM operations. Also, we use the `state_lock` mutex to serialize state modification operations in the LSM tree. In this task, you will need to think carefully how to use these locks to make the LSM state modification race-condition free while minimizing critical sections.
+请注意，创建 SST 文件是一项计算密集型且成本高昂的操作。同样，我们不希望长时间持有 `state` 读/写锁，因为它可能会阻塞其他操作并在 LSM 操作中产生巨大的延迟峰值。此外，我们使用 `state_lock` 互斥锁来序列化 LSM 树中的状态修改操作。在此任务中，您需要仔细考虑如何使用这些锁来使 LSM 状态修改无竞争条件，同时最小化临界区。
 
-We do not have concurrent test cases and you will need to think carefully about your implementation. Also, remember that the last memtable in the immutable memtable list is the earliest one, and is the one that you should flush.
+我们没有并发测试用例，您需要自行仔细考虑您的实现。另外，请记住，不可变内存表列表中的最后一个内存表是最早的，也是您应该刷写的那个。
 
 <details>
 
-<summary>Spoilers: Flush L0 Pseudo Code</summary>
+<summary>剧透：刷写 L0 伪代码</summary>
 
 ```rust,no_run
 fn flush_l0(&self) {
@@ -69,28 +69,28 @@ fn flush_l0(&self) {
 
 </details>
 
-## Task 2: Flush Trigger
+## 任务 2：刷写触发器 (Flush Trigger)
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/lsm_storage.rs
 src/compact.rs
 ```
 
-When the number of memtables (immutable + mutable) in memory exceeds the `num_memtable_limit` in LSM storage options, you should flush the earliest memtable to the disk. This is done by a flush thread in the background. The flush thread will be started with the `MiniLSM` structure. We have already implemented necessary code to start the thread and properly stop the thread.
+当内存中内存表（不可变 + 可变）的数量超过 LSM 存储选项中的 `num_memtable_limit` 时，您应该将最早的内存表刷写到磁盘。这是由后台的刷写线程完成的。刷写线程将随 `MiniLSM` 结构一起启动。我们已经实现了启动线程和正确停止线程的必要代码。
 
-In this task, you will need to implement `LsmStorageInner::trigger_flush` in `compact.rs`, and `MiniLsm::close` in `lsm_storage.rs`. `trigger_flush` will be executed every 50 milliseconds. If the number of memtables exceed the limit, you should call `force_flush_next_imm_memtable` to flush a memtable. When the user calls the `close` function, you should wait until the flush thread (and the compaction thread in week 2) to finish.
+在此任务中，您需要在 `compact.rs` 中实现 `LsmStorageInner::trigger_flush`，并在 `lsm_storage.rs` 中实现 `MiniLsm::close`。`trigger_flush` 将每 50 毫秒执行一次。如果内存表的数量超过限制，您应该调用 `force_flush_next_imm_memtable` 来刷写一个内存表。当用户调用 `close` 函数时，您应该等待刷写线程（以及第 2 周中的压缩线程）完成。
 
-## Task 3: Filter the SSTs
+## 任务 3：过滤 SST (Filter the SSTs)
 
-Now that you have a fully working storage engine, and you can use the mini-lsm-cli to interact with your storage engine.
+现在您有了一个功能齐全的存储引擎，您可以使用 mini-lsm-cli 与您的存储引擎进行交互。
 
 ```shell
 cargo run --bin mini-lsm-cli -- --compaction none
 ```
 
-And then,
+然后，
 
 ```
 fill 1000 3000
@@ -103,11 +103,11 @@ get 2333
 scan 2000 2333
 ```
 
-If you fill more data, you can see your flush thread working and automatically flushing the L0 SSTs without using the `flush` command.
+如果您填充更多数据，您可以看到刷写线程正在工作，并自动刷写 L0 SST，而无需使用 `flush` 命令。
 
-And lastly, let us implement a simple optimization on filtering the SSTs before we end this week. Based on the key range that the user provides, we can easily filter out some SSTs that do not contain the key range, so that we do not need to read them in the merge iterator.
+最后，在本周结束之前，让我们实现一个简单的优化来过滤 SST。根据用户提供的键范围，我们可以轻松过滤掉一些不包含该键范围的 SST，这样我们就不需要在合并迭代器中读取它们。
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/lsm_storage.rs
@@ -115,23 +115,23 @@ src/iterators/*
 src/lsm_iterator.rs
 ```
 
-You will need to change your read path functions to skip the SSTs that is impossible to contain the key/key range. You will need to implement `num_active_iterators` for your iterators so that the test cases can do the check on whether your implementation is correct or not. For `MergeIterator` and `TwoMergeIterator`, it is the sum of `num_active_iterators` of all children iterators. Note that if you did not modify the fields in the starter code of `MergeIterator`, remember to also take `MergeIterator::current` into account. For `LsmIterator` and `FusedIterator`, simply return the number of active iterators from the inner iterator.
+您需要更改读取路径函数以跳过不可能包含键/键范围的 SST。您需要为迭代器实现 `num_active_iterators`，以便测试用例可以检查您的实现是否正确。对于 `MergeIterator` 和 `TwoMergeIterator`，它是所有子迭代器的 `num_active_iterators` 之和。请注意，如果您没有修改 `MergeIterator` 入门代码中的字段，请记住也要考虑 `MergeIterator::current`。对于 `LsmIterator` 和 `FusedIterator`，只需从内部迭代器返回活动迭代器的数量即可。
 
-You can implement helper functions like `range_overlap` and `key_within` to simplify your code.
+您可以实现类似 `range_overlap` 和 `key_within` 的辅助函数来简化您的代码。
 
-## Test Your Understanding
+## 测试您的理解 (Test Your Understanding)
 
-* What happens if a user requests to delete a key twice?
-* How much memory (or number of blocks) will be loaded into memory at the same time when the iterator is initialized?
-* Some crazy users want to *fork* their LSM tree. They want to start the engine to ingest some data, and then fork it, so that they get two identical dataset and then operate on them separately. An easy but not efficient way to implement is to simply copy all SSTs and the in-memory structures to a new directory and start the engine. However, note that we never modify the on-disk files, and we can actually reuse the SST files from the parent engine. How do you think you can implement this fork functionality efficiently without copying data? (Check out [Neon Branching](https://neon.tech/docs/introduction/branching)).
-* Imagine you are building a multi-tenant LSM system where you host 10k databases on a single 128GB memory machine. The memtable size limit is set to 256MB. How much memory for memtable do you need for this setup?
-  * Obviously, you don't have enough memory for all these memtables. Assume each user still has their own memtable, how can you design the memtable flush policy to make it work? Does it make sense to make all these users share the same memtable (i.e., by encoding a tenant ID as the key prefix)?
+* 如果用户请求删除一个键两次会发生什么？
+* 初始化迭代器时，将同时加载多少内存（或多少块）到内存中？
+* 一些疯狂的用户想要*分叉*(fork)他们的 LSM 树。他们希望启动引擎以摄取一些数据，然后对其进行分叉，以便获得两个相同的数据集，然后分别对它们进行操作。一种简单但效率不高的方法是简单地将所有 SST 和内存结构复制到一个新目录并启动引擎。但是，请注意，我们从不修改磁盘上的文件，实际上我们可以重用父引擎的 SST 文件。您认为如何才能在不复制数据的情况下有效地实现此分叉功能？（请查看 [Neon Branching](https://neon.tech/docs/introduction/branching)）。
+* 假设您正在构建一个多租户 LSM 系统，您在一台具有 128GB 内存的机器上托管 1 万个数据库。内存表大小限制设置为 256MB。此设置需要多少内存表内存？
+  * 显然，您没有足够的内存容纳所有这些内存表。假设每个用户仍然拥有自己的内存表，您将如何设计内存表刷写策略以使其正常工作？让所有这些用户共享同一个内存表（例如，通过将租户 ID 编码为键前缀）是否有意义？
 
-We do not provide reference answers to the questions, and feel free to discuss about them in the Discord community.
+我们不提供这些问题的参考答案，欢迎在 Discord 社区中讨论它们。
 
-## Bonus Tasks
+## 奖励任务 (Bonus Tasks)
 
-* **Implement Write/L0 Stall.** When the number of memtables exceed the maximum number too much, you can stop users from writing to the storage engine. You may also implement write stall for L0 tables in week 2 after you have implemented compactions.
-* **Prefix Scan.** You may filter more SSTs by implementing the prefix scan interface and using the prefix information.
+* **实现写入/L0 暂停 (Implement Write/L0 Stall)。** 当内存表的数量过多地超过最大数量时，您可以阻止用户写入存储引擎。在第 2 周实现压缩后，您还可以为 L0 表实现写入暂停。
+* **前缀扫描 (Prefix Scan)。** 您可以通过实现前缀扫描接口并使用前缀信息来过滤更多的 SST。
 
 {{#include copyright.md}}

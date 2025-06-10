@@ -1,19 +1,17 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
-#![allow(unused_variables)] // TODO(you): remove this lint after implementing this mod
-#![allow(dead_code)] // TODO(you): remove this lint after implementing this mod
+#![allow(unused_variables)] // TODO(you): 实现此模块后移除此 lint
+#![allow(dead_code)] // TODO(you): 实现此模块后移除此 lint
 
 mod leveled;
 mod simple_leveled;
@@ -74,7 +72,7 @@ impl CompactionController {
             CompactionController::Tiered(ctrl) => ctrl
                 .generate_compaction_task(snapshot)
                 .map(CompactionTask::Tiered),
-            CompactionController::NoCompaction => unreachable!(),
+            CompactionController::NoCompaction => unreachable!("不应在 NoCompaction 模式下调用 generate_compaction_task"),
         }
     }
 
@@ -95,7 +93,7 @@ impl CompactionController {
             (CompactionController::Tiered(ctrl), CompactionTask::Tiered(task)) => {
                 ctrl.apply_compaction_result(snapshot, task, output)
             }
-            _ => unreachable!(),
+            _ => unreachable!("CompactionController 和 CompactionTask 类型不匹配"),
         }
     }
 }
@@ -111,28 +109,27 @@ impl CompactionController {
 
 #[derive(Debug, Clone)]
 pub enum CompactionOptions {
-    /// Leveled compaction with partial compaction + dynamic level support (= RocksDB's Leveled
-    /// Compaction)
+    /// 分层压缩，支持部分压缩 + 动态层级（= RocksDB 的分层压缩）
     Leveled(LeveledCompactionOptions),
-    /// Tiered compaction (= RocksDB's universal compaction)
+    /// 阶梯压缩（= RocksDB 的通用压缩）
     Tiered(TieredCompactionOptions),
-    /// Simple leveled compaction
+    /// 简单分层压缩
     Simple(SimpleLeveledCompactionOptions),
-    /// In no compaction mode (week 1), always flush to L0
+    /// 无压缩模式（第 1 周），始终刷写到 L0
     NoCompaction,
 }
 
 impl LsmStorageInner {
     fn compact(&self, _task: &CompactionTask) -> Result<Vec<Arc<SsTable>>> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     pub fn force_full_compaction(&self) -> Result<()> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     fn trigger_compaction(&self) -> Result<()> {
-        unimplemented!()
+        unimplemented!() // TODO: 实现此功能
     }
 
     pub(crate) fn spawn_compaction_thread(
@@ -149,7 +146,7 @@ impl LsmStorageInner {
                 loop {
                     crossbeam_channel::select! {
                         recv(ticker) -> _ => if let Err(e) = this.trigger_compaction() {
-                            eprintln!("compaction failed: {}", e);
+                            eprintln!("压缩失败: {}", e);
                         },
                         recv(rx) -> _ => return
                     }
@@ -174,7 +171,7 @@ impl LsmStorageInner {
             loop {
                 crossbeam_channel::select! {
                     recv(ticker) -> _ => if let Err(e) = this.trigger_flush() {
-                        eprintln!("flush failed: {}", e);
+                        eprintln!("刷写失败: {}", e);
                     },
                     recv(rx) -> _ => return
                 }

@@ -2,104 +2,82 @@
   mini-lsm-book © 2022-2025 by Alex Chi Z is licensed under CC BY-NC-SA 4.0
 -->
 
-# SST Builder and SST Iterator
+# SST 构建器和 SST 迭代器 (SST Builder and SST Iterator)
 
 <div class="warning">
 
-This is a legacy version of the Mini-LSM course and we will not maintain it anymore. We now have a better version of this course and this chapter is now part of [Mini-LSM Week 1 Day 4: Sorted String Table (SST)](./week1-04-sst.md).
+这是 Mini-LSM 课程的旧版本，我们将不再维护它。我们现在有了这个课程的更好版本，本章内容现在是 [Mini-LSM 第 1 周第 4 天：有序字符串表 (SST)](./week1-04-sst.md) 的一部分。
 
 </div>
 
 <!-- toc -->
 
-In this part, you will need to modify:
+在这一部分，您需要修改：
 
 * `src/table/builder.rs`
 * `src/table/iterator.rs`
 * `src/table.rs`
 
-You can use `cargo x copy-test day2` to copy our provided test cases to the starter code directory. After you have
-finished this part, use `cargo x scheck` to check the style and run all test cases. If you want to write your own
-test cases, write a new module `#[cfg(test)] mod user_tests { /* your test cases */ }` in `table.rs`. Remember to remove
-`#![allow(...)]` at the top of the modules you modified so that cargo clippy can actually check the styles.
+您可以使用 `cargo x copy-test day2` 将我们提供的测试用例复制到入门代码目录。完成此部分后，使用 `cargo x scheck` 检查样式并运行所有测试用例。如果您想编写自己的测试用例，请在 `table.rs` 中编写一个新的模块 `#[cfg(test)] mod user_tests { /* 您的测试用例 */ }`。请记住移除您修改的模块顶部的 `#![allow(...)]`，以便 cargo clippy 能够实际检查样式。
 
-## Task 1 - SST Builder
+## 任务 1 - SST 构建器 (SST Builder)
 
-SST is composed of data blocks and index blocks stored on the disk. Usually, data blocks are lazily loaded -- they will
-not be loaded into the memory until a user requests it. Index blocks can also be loaded on-demand, but in this course,
-we make simple assumptions that all SST index blocks (meta blocks) can fit in memory. Generally, an SST file is of 256MB
-size.
+SST (Sorted String Table, 有序字符串表) 由存储在磁盘上的数据块 (data block) 和索引块 (index block) 组成。通常，数据块是惰性加载的 —— 它们直到用户请求时才会被加载到内存中。索引块也可以按需加载，但在本课程中，我们简单地假设所有 SST 索引块（元数据块, meta block）都可以容纳在内存中。通常，一个 SST 文件的大小为 256MB。
 
-The SST builder is similar to block builder -- users will call `add` on the builder. You should maintain a `BlockBuilder`
-inside SST builder and split block when necessary. Also, you will need to maintain block metadata `BlockMeta`, which
-includes the first key in each block and the offset of each block. The `build` function will encode the SST, write
-everything to disk using `FileObject::create`, and return an `SsTable` object. Note that in part 2, you don't need to
-actually write the data to the disk.
-Just store everything in memory as a vector until we implement a block cache (Day 4, Task 5).
+SST 构建器类似于块构建器 —— 用户将调用构建器上的 `add` 方法。您需要在 SST 构建器内部维护一个 `BlockBuilder`，并在必要时分割块。此外，您还需要维护块元数据 `BlockMeta`，其中包括每个块中的第一个键和每个块的偏移量。`build` 函数将对 SST 进行编码，使用 `FileObject::create` 将所有内容写入磁盘，并返回一个 `SsTable` 对象。请注意，在第 2 部分中，您不需要实际将数据写入磁盘。只需将所有内容作为向量存储在内存中，直到我们实现块缓存（第 4 天，任务 5）。
 
-The encoding of SST is like:
+SST 的编码方式如下：
 
 ```
 -------------------------------------------------------------------------------------------
-|         Block Section         |          Meta Section         |          Extra          |
+| 数据块区域 (Block Section) | 元数据区域 (Meta Section) | 额外区域 (Extra) |
 -------------------------------------------------------------------------------------------
-| data block | ... | data block | meta block | ... | meta block | meta block offset (u32) |
+| 数据块 | ... | 数据块 | 元数据 | ... | 元数据 | 元数据块偏移量 (u32) |
 -------------------------------------------------------------------------------------------
 ```
 
-You also need to implement `estimated_size` function of `SsTableBuilder`, so that the caller can know when can it start
-a new SST to write data. The function don't need to be very accurate. Given the assumption that data blocks contain much
-more data than meta block, we can simply return the size of data blocks for `estimated_size`.
+您还需要实现 `SsTableBuilder` 的 `estimated_size` 函数，以便调用者可以知道何时可以开始一个新的 SST 来写入数据。该函数不需要非常精确。鉴于数据块包含的数据远多于元数据块的假设，我们可以简单地返回数据块的大小作为 `estimated_size`。
 
-You can also align blocks to 4KB boundary so as to make it possible to do direct I/O in the future. This is an optional
-optimization.
+您还可以将块对齐到 4KB 边界，以便将来可以进行直接 I/O (direct I/O)。这是一个可选的优化。
 
-The recommend sequence to finish **Task 1** is as below:
+完成 **任务 1** 的推荐顺序如下：
 
-- Implement `SsTableBuilder` in `src/table/builder.rs`
-  - Before implementing `SsTableBuilder`, you may want to take a look in `src/table.rs`, for `FileObject` & `BlockMeta`.
-  - For `FileObject`, you should at least implement `read`, `size` and `create` (No need for Disk I/O) before day 4.
-  - For `BlockMeta`, you may want to add some extra fields when encoding / decoding the `BlockMeta` to / from a buffer.
-- Implement `SsTable` in `src/table.rs`
-  - Same as above, you do not need to worry about `BlockCache` until day 4.
+- 在 `src/table/builder.rs` 中实现 `SsTableBuilder`
+  - 在实现 `SsTableBuilder` 之前，您可能需要查看 `src/table.rs` 中的 `FileObject` 和 `BlockMeta`。
+  - 对于 `FileObject`，在第 4 天之前，您至少应该实现 `read`、`size` 和 `create`（无需磁盘 I/O）。
+  - 对于 `BlockMeta`，在将 `BlockMeta` 编码到缓冲区或从缓冲区解码时，您可能需要添加一些额外的字段。
+- 在 `src/table.rs` 中实现 `SsTable`
+  - 同上，在第 4 天之前，您无需担心 `BlockCache`。
 
-After finishing **Task 1**, you should be able to pass all the current tests except two iterator tests.
+完成 **任务 1** 后，您应该能够通过当前所有的测试，除了两个迭代器测试。
 
-## Task 2 - SST Iterator
+## 任务 2 - SST 迭代器 (SST Iterator)
 
-Like `BlockIterator`, you will need to implement an iterator over an SST. Note that you should load data on demand. For
-example, if your iterator is at block 1, it should not hold any other block content in memory until it reaches the next
-block.
+与 `BlockIterator` 类似，您需要实现一个 SST 的迭代器。请注意，您应该按需加载数据。例如，如果您的迭代器位于块 1，则在到达下一个块之前，它不应在内存中保存任何其他块的内容。
 
-`SsTableIterator` should implement the `StorageIterator` trait, so that it can be composed with other iterators in the
-future.
+`SsTableIterator` 应实现 `StorageIterator` trait，以便将来可以与其他迭代器组合使用。
 
-One thing to note is `seek_to_key` function. Basically, you will need to do binary search on block metadata to find
-which block might possibly contain the key. It is possible that the key doesn't exist in the LSM tree so that the
-block iterator will be invalid immediately after a seek. For example,
+需要注意的一点是 `seek_to_key` 函数。基本上，您需要在块元数据上进行二分搜索，以找到可能包含该键的块。该键可能不存在于 LSM 树中，因此在寻址后块迭代器可能会立即失效。例如，
 
 ```
 ----------------------------------
-| block 1 | block 2 | block meta |
+| 块 1 (block 1) | 块 2 (block 2) | 块元数据 (block meta) |
 ----------------------------------
 | a, b, c | e, f, g | 1: a, 2: e |
 ----------------------------------
 ```
 
-If we do `seek(b)` in this SST, it is quite simple -- using binary search, we can know block 1 contains keys `a <= keys
-< e`. Therefore, we load block 1 and seek the block iterator to the corresponding position.
+如果我们在这个 SST 中执行 `seek(b)`，这很简单 —— 使用二分搜索，我们可以知道块 1 包含的键满足 `a <= keys < e`。因此，我们加载块 1 并将块迭代器寻址到相应的位置。
 
-But if we do `seek(d)`, we will position to block 1, but seeking `d` in block 1 will reach the end of the block.
-Therefore, we should check if the iterator is invalid after the seek, and switch to the next block if necessary.
+但是如果我们执行 `seek(d)`，我们将定位到块 1，但是在块 1 中寻址 `d` 将到达块的末尾。因此，我们应该在寻址后检查迭代器是否无效，并在必要时切换到下一个块。
 
-## Extra Tasks
+## 额外任务 (Extra Tasks)
 
-Here is a list of extra tasks you can do to make the block encoding more robust and efficient.
+以下是一些您可以完成的额外任务，以使块编码更加健壮和高效。
 
-*Note: Some test cases might not pass after implementing this part. You might need to write your own test cases.*
+*注意：完成此部分后，某些测试用例可能无法通过。您可能需要编写自己的测试用例。*
 
-* Implement index checksum. Verify checksum when decoding.
-* Explore different SST encoding and layout. For example, in the [Lethe](https://disc-projects.bu.edu/lethe/) paper,
-  the author adds secondary key support to SST.
+* 实现索引校验和 (index checksum)。在解码时验证校验和。
+* 探索不同的 SST 编码和布局。例如，在 [Lethe](https://disc-projects.bu.edu/lethe/) 论文中，作者向 SST 添加了二级键 (secondary key) 支持。
 
 {{#include copyright.md}}

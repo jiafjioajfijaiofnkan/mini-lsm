@@ -1,16 +1,14 @@
-// Copyright (c) 2022-2025 Alex Chi Z
+// 版权所有 (c) 2022-2025 Alex Chi Z
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// 本软件根据 Apache 许可证 2.0 版本（以下简称“许可证”）获得许可；
+// 除非遵守许可证，否则您不得使用本文件。
+// 您可以在以下网址获取许可证副本：
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// 除非适用法律要求或书面同意，根据许可证分发的软件
+// 均以“原样”提供，不附带任何明示或暗示的保证或条件。
+// 请参阅许可证以了解特定语言下的权限和限制。
 
 mod leveled;
 mod simple_leveled;
@@ -78,7 +76,7 @@ impl CompactionController {
             CompactionController::Tiered(ctrl) => ctrl
                 .generate_compaction_task(snapshot)
                 .map(CompactionTask::Tiered),
-            CompactionController::NoCompaction => unreachable!(),
+            CompactionController::NoCompaction => unreachable!("不应在 NoCompaction 模式下调用 generate_compaction_task"),
         }
     }
 
@@ -99,7 +97,7 @@ impl CompactionController {
             (CompactionController::Tiered(ctrl), CompactionTask::Tiered(task)) => {
                 ctrl.apply_compaction_result(snapshot, task, output)
             }
-            _ => unreachable!(),
+            _ => unreachable!("CompactionController 和 CompactionTask 类型不匹配"),
         }
     }
 }
@@ -115,14 +113,13 @@ impl CompactionController {
 
 #[derive(Debug, Clone)]
 pub enum CompactionOptions {
-    /// Leveled compaction with partial compaction + dynamic level support (= RocksDB's Leveled
-    /// Compaction)
+    /// 分层压缩，支持部分压缩 + 动态层级（= RocksDB 的分层压缩）
     Leveled(LeveledCompactionOptions),
-    /// Tiered compaction (= RocksDB's universal compaction)
+    /// 阶梯压缩（= RocksDB 的通用压缩）
     Tiered(TieredCompactionOptions),
-    /// Simple leveled compaction
+    /// 简单分层压缩
     Simple(SimpleLeveledCompactionOptions),
-    /// In no compaction mode (week 1), always flush to L0
+    /// 无压缩模式（第 1 周），始终刷写到 L0
     NoCompaction,
 }
 
@@ -161,7 +158,7 @@ impl LsmStorageInner {
             }
         }
         if let Some(builder) = builder {
-            let sst_id = self.next_sst_id(); // lock dropped here
+            let sst_id = self.next_sst_id(); // 此处释放锁
             let sst = Arc::new(builder.build(
                 sst_id,
                 Some(self.block_cache.clone()),
@@ -266,7 +263,7 @@ impl LsmStorageInner {
 
     pub fn force_full_compaction(&self) -> Result<()> {
         let CompactionOptions::NoCompaction = self.options.compaction_options else {
-            panic!("full compaction can only be called with compaction is not enabled")
+            panic!("完全压缩只能在未启用压缩时调用")
         };
 
         let snapshot = {
@@ -281,7 +278,7 @@ impl LsmStorageInner {
             l1_sstables: l1_sstables.clone(),
         };
 
-        println!("force full compaction: {:?}", compaction_task);
+        println!("强制完全压缩: {:?}", compaction_task);
 
         let sstables = self.compact(&compaction_task)?;
         let mut ids = Vec::with_capacity(sstables.len());
@@ -319,7 +316,7 @@ impl LsmStorageInner {
             std::fs::remove_file(self.path_of_sst(*sst))?;
         }
 
-        println!("force full compaction done, new SSTs: {:?}", ids);
+        println!("强制完全压缩完成，新的 SST: {:?}", ids);
 
         Ok(())
     }
@@ -336,7 +333,7 @@ impl LsmStorageInner {
             return Ok(());
         };
         self.dump_structure();
-        println!("running compaction task: {:?}", task);
+        println!("正在运行压缩任务: {:?}", task);
         let sstables = self.compact(&task)?;
         let output = sstables.iter().map(|x| x.sst_id()).collect::<Vec<_>>();
         let ssts_to_remove = {
@@ -355,7 +352,7 @@ impl LsmStorageInner {
             let mut ssts_to_remove = Vec::with_capacity(files_to_remove.len());
             for file_to_remove in &files_to_remove {
                 let result = snapshot.sstables.remove(file_to_remove);
-                assert!(result.is_some(), "cannot remove {}.sst", file_to_remove);
+                assert!(result.is_some(), "无法移除 {}.sst", file_to_remove);
                 ssts_to_remove.push(result.unwrap());
             }
             let mut state = self.state.write();
@@ -369,7 +366,7 @@ impl LsmStorageInner {
             ssts_to_remove
         };
         println!(
-            "compaction finished: {} files removed, {} files added, output={:?}",
+            "压缩完成: 移除了 {} 个文件, 添加了 {} 个文件, 输出={:?}",
             ssts_to_remove.len(),
             output.len(),
             output
@@ -396,7 +393,7 @@ impl LsmStorageInner {
                 loop {
                     crossbeam_channel::select! {
                         recv(ticker) -> _ => if let Err(e) = this.trigger_compaction() {
-                            eprintln!("compaction failed: {}", e);
+                            eprintln!("压缩失败: {}", e);
                         },
                         recv(rx) -> _ => return
                     }
@@ -429,7 +426,7 @@ impl LsmStorageInner {
             loop {
                 crossbeam_channel::select! {
                     recv(ticker) -> _ => if let Err(e) = this.trigger_flush() {
-                        eprintln!("flush failed: {}", e);
+                        eprintln!("刷写失败: {}", e);
                     },
                     recv(rx) -> _ => return
                 }

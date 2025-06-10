@@ -2,34 +2,34 @@
   mini-lsm-book © 2022-2025 by Alex Chi Z is licensed under CC BY-NC-SA 4.0
 -->
 
-# Snack Time: SST Optimizations
+# 点心时间：SST 优化 (Snack Time: SST Optimizations)
 
-![Chapter Overview](./lsm-tutorial/week1-07-overview.svg)
+![本章概览](./lsm-tutorial/week1-07-overview.svg)
 
-In the previous chapter, you already built a storage engine with get/scan/put support. At the end of this week, we will implement some easy but important optimizations of SST formats. Welcome to Mini-LSM's week 1 snack time!
+在上一章中，您已经构建了一个支持 get/scan/put 的存储引擎。在本周结束时，我们将实现一些简单但重要的 SST 格式优化。欢迎来到 Mini-LSM 第 1 周的点心时间！
 
-In this chapter, you will:
+在本章中，您将：
 
-* Implement bloom filter on SSTs and integrate into the LSM read path `get`.
-* Implement key compression in SST block format.
+* 在 SST 上实现布隆过滤器 (bloom filter) 并将其集成到 LSM 读取路径 `get` 中。
+* 在 SST 块格式中实现键压缩 (key compression)。
 
 
-To copy the test cases into the starter code and run them,
+要将测试用例复制到入门代码并运行它们：
 
 ```
 cargo x copy-test --week 1 --day 7
 cargo x scheck
 ```
 
-## Task 1: Bloom Filters
+## 任务 1：布隆过滤器 (Bloom Filters)
 
-Bloom filters are probabilistic data structures that maintains a set of keys. You can add keys to a bloom filter, and you can know what key may exist / must not exist in the set of keys being added to the bloom filter.
+布隆过滤器是一种概率数据结构，用于维护一组键。您可以向布隆过滤器中添加键，并且可以知道某个键可能存在/必定不存在于已添加到布隆过滤器的键集合中。
 
-You usually need to have a hash function in order to construct a bloom filter, and a key can have multiple hashes. Let us take a look at the below example. Assume that we already have hashes of some keys and the bloom filter has 7 bits.
+通常，您需要一个哈希函数来构造布隆过滤器，一个键可以有多个哈希值。让我们看下面的例子。假设我们已经有了一些键的哈希值，并且布隆过滤器有 7 位。
 
-[Note: If you want to understand bloom filters better, look [here](https://samwho.dev/bloom-filters/)]
+[注意：如果您想更好地理解布隆过滤器，请看[这里](https://samwho.dev/bloom-filters/)]
 
-```plaintext 
+```plaintext
 hash1 = ((character - a) * 13) % 7
 hash2 = ((character - a) * 11) % 7
 b -> 6 4
@@ -40,52 +40,52 @@ g -> 1 3
 h -> 0 0
 ```
 
-If we insert b, c, d into the 7-bit bloom filter, we will get:
+如果我们将 b、c、d 插入到 7 位布隆过滤器中，我们将得到：
 
 ```
-    bit  0123456
-insert b     1 1
-insert c  1   1
-insert d     11
-result   0101111
+    位 (bit) 0123456
+插入 b (insert b)     1 1
+插入 c (insert c)  1   1
+插入 d (insert d)     11
+结果 (result)   0101111
 ```
 
-When probing the bloom filter, we generate the hashes for a key, and see if the corresponding bit has been set. If all of them are set to true, then the key may exist in the bloom filter. Otherwise, the key must NOT exist in the bloom filter.
+探测布隆过滤器时，我们为键生成哈希值，并查看相应的位是否已设置。如果所有位都设置为 true，则该键可能存在于布隆过滤器中。否则，该键必定不存在于布隆过滤器中。
 
-For `e -> 3 2`, as the bit 2 is not set, it should not be in the original set. For `g -> 1 3`, because two bits are all set, it may or may not exist in the set. For `h -> 0 0`, both of the bits (actually it's one bit) are not set, and therefore it should not be in the original set.
+对于 `e -> 3 2`，由于第 2 位未设置，因此它不应在原始集合中。对于 `g -> 1 3`，因为两位都已设置，所以它可能存在也可能不存在于集合中。对于 `h -> 0 0`，两位（实际上是一位）都未设置，因此它不应在原始集合中。
 
 ```
-b -> maybe (actual: yes)
-c -> maybe (actual: yes)
-d -> maybe (actual: yes)
-e -> MUST not (actual: no)
-g -> maybe (actual: no)
-h -> MUST not (actual: no)
+b -> 可能存在 (实际：是) (maybe (actual: yes))
+c -> 可能存在 (实际：是) (maybe (actual: yes))
+d -> 可能存在 (实际：是) (maybe (actual: yes))
+e -> 必定不存在 (实际：否) (MUST not (actual: no))
+g -> 可能存在 (实际：否) (maybe (actual: no))
+h -> 必定不存在 (实际：否) (MUST not (actual: no))
 ```
 
-Remember that at the end of last chapter, we implemented SST filtering based on key range. Now, on the `get` read path, we can also use the bloom filter to ignore SSTs that do not contain the key that the user wants to lookup, therefore reducing the number of files to be read from the disk.
+请记住，在上一章的末尾，我们基于键范围实现了 SST 过滤。现在，在 `get` 读取路径上，我们还可以使用布隆过滤器来忽略不包含用户想要查找的键的 SST，从而减少从磁盘读取的文件数量。
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/table/bloom.rs
 ```
 
-In the implementation, you will build a bloom filter from key hashes (which are u32 numbers). For each of the hash, you will need to set `k` bits. The bits are computed by:
+在实现中，您将从键哈希（u32 数字）构建布隆过滤器。对于每个哈希，您需要设置 `k` 个位。这些位通过以下方式计算：
 
 ```rust,no_run
-let delta = (h >> 17) | (h << 15); // h is the key hash
+let delta = (h >> 17) | (h << 15); // h 是键哈希
 for _ in 0..k {
-    // TODO: use the hash to set the corresponding bit
+    // TODO: 使用哈希设置相应的位
     h = h.wrapping_add(delta);
 }
 ```
 
-We provide all the skeleton code for doing the magic mathematics. You only need to implement the procedure of building a bloom filter and probing a bloom filter.
+我们提供了执行这种神奇数学运算的所有骨架代码。您只需要实现构建布隆过滤器和探测布隆过滤器的过程。
 
-## Task 2: Integrate Bloom Filter on the Read Path
+## 任务 2：在读取路径上集成布隆过滤器 (Integrate Bloom Filter on the Read Path)
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/table/builder.rs
@@ -93,51 +93,51 @@ src/table.rs
 src/lsm_storage.rs
 ```
 
-For the bloom filter encoding, you can append the bloom filter to the end of your SST file. You will need to store the bloom filter offset at the end of the file, and compute meta offsets accordingly.
+对于布隆过滤器编码，您可以将布隆过滤器附加到 SST 文件的末尾。您需要在文件末尾存储布隆过滤器的偏移量，并相应地计算元数据偏移量。
 
 ```plaintext
 -----------------------------------------------------------------------------------------------------
-|         Block Section         |                            Meta Section                           |
+| 数据块区域 (Block Section) | 元数据区域 (Meta Section) |
 -----------------------------------------------------------------------------------------------------
-| data block | ... | data block | metadata | meta block offset | bloom filter | bloom filter offset |
-|                               |  varlen  |         u32       |    varlen    |        u32          |
+| 数据块 | ... | 数据块 | 元数据 (metadata) | 元数据块偏移量 | 布隆过滤器 | 布隆过滤器偏移量 |
+|                               |  变长 (varlen)  |         u32       |    变长 (varlen)    |        u32          |
 -----------------------------------------------------------------------------------------------------
 ```
 
-We use the `farmhash` crate to compute the hashes of the keys. When building the SST, you will need also to build the bloom filter by computing the key hash using `farmhash::fingerprint32`. You will need to encode/decode the bloom filters with the block meta. You can choose false positive rate 0.01 for your bloom filter. You may need to add new fields to the structures apart from the ones provided in the starter code as necessary.
+我们使用 `farmhash` crate 来计算键的哈希值。构建 SST 时，您还需要通过使用 `farmhash::fingerprint32` 计算键哈希来构建布隆过滤器。您需要使用块元数据对布隆过滤器进行编码/解码。您可以为布隆过滤器选择 0.01 的误报率。您可能需要在提供的入门代码之外根据需要向结构添加新字段。
 
-After that, you can modify the `get` read path to filter SSTs based on bloom filters.
+之后，您可以修改 `get` 读取路径以基于布隆过滤器过滤 SST。
 
-We do not have integration test for this part and you will need to ensure that your implementation still pass all previous chapter tests.
+我们没有针对此部分的集成测试，您需要确保您的实现仍然通过所有先前章节的测试。
 
-## Task 3: Key Prefix Encoding + Decoding
+## 任务 3：键前缀编码 + 解码 (Key Prefix Encoding + Decoding)
 
-In this task, you will need to modify:
+在此任务中，您需要修改：
 
 ```
 src/block/builder.rs
 src/block/iterator.rs
 ```
 
-As the SST file stores keys in order, it is possible that the user stores keys of the same prefix, and we can compress the prefix in the SST encoding so as to save space.
+由于 SST 文件按顺序存储键，因此用户可能存储具有相同前缀的键，我们可以在 SST 编码中压缩前缀以节省空间。
 
-We compare the current key with the first key in the block. We store the key as follows:
+我们将当前键与块中的第一个键进行比较。我们按如下方式存储键：
 
 ```
 key_overlap_len (u16) | rest_key_len (u16) | key (rest_key_len)
 ```
 
-The `key_overlap_len` indicates how many bytes are the same as the first key in the block. For example, if we see a record: `5|3|LSM`, where the first key in the block is `mini-something`, we can recover the current key to `mini-LSM`.
+`key_overlap_len` 指示与块中第一个键相同的字节数。例如，如果我们看到一条记录：`5|3|LSM`，其中块中的第一个键是 `mini-something`，我们可以将当前键恢复为 `mini-LSM`。
 
-After you finish the encoding, you will also need to implement decoding in the block iterator. You may need to add new fields to the structures apart from the ones provided in the starter code as necessary.
+完成编码后，您还需要在块迭代器中实现解码。您可能需要在提供的入门代码之外根据需要向结构添加新字段。
 
-## Test Your Understanding
+## 测试您的理解 (Test Your Understanding)
 
-* How does the bloom filter help with the SST filtering process? What kind of information can it tell you about a key? (may not exist/may exist/must exist/must not exist)
-* Consider the case that we need a backward iterator. Does our key compression affect backward iterators?
-* Can you use bloom filters on scan?
-* What might be the pros/cons of doing key-prefix encoding over adjacent keys instead of with the first key in the block?
+* 布隆过滤器如何帮助 SST 过滤过程？它可以告诉您关于某个键的哪些信息？（可能不存在/可能存在/必定存在/必定不存在）
+* 考虑我们需要反向迭代器的情况。我们的键压缩会影响反向迭代器吗？
+* 您可以在扫描操作中使用布隆过滤器吗？
+* 与块中的第一个键进行键前缀编码，而不是与相邻键进行编码，各有什么优缺点？
 
-We do not provide reference answers to the questions, and feel free to discuss about them in the Discord community.
+我们不提供这些问题的参考答案，欢迎在 Discord 社区中讨论它们。
 
 {{#include copyright.md}}
